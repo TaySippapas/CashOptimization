@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+
+# Node
+node_modules/
+npm-debug.log*
+*.tsbuildinfo
+
+# Build outputs (keep frontend/dist for deployment!)
+# frontend/dist/  # DO NOT exclude this
+
+# IDE / OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+
+# Databricks
+.databricks/
+
+# Claude
+.claude/
+
+# Other
+mock_data/

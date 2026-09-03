@@ -1,0 +1,247 @@
+# KTB Cash Route Optimization App — Unity Catalog view contract (9 entities)
+# Source of truth for the live app: REQUIRED_DATA_FORMAT.md
+# The app reads these views only (via SQL warehouse). Customers map source
+# tables → these names/columns; they never change the React/FastAPI code.
+
+version: 1
+app_name: ktb-cash-optimization
+contract_kind: ktb_ui_views
+
+entities:
+
+  app_settings:
+    tier: source
+    grain: one row per (business_date, region_code); latest updated_at wins
+    purpose: Region defaults, fleet size, cost params; also drives auto date resolution
+    powers: [App date/region config, Optimization defaults]
+    blocking: true
+    customer_hint: >
+      Planning-day parameters for the region. Often a small config / ops calendar
+      table, or a one-row-per-day settings extract.
+    columns:
+      - {name: business_date, type: DATE, required: true}
+      - {name: region_code, type: STRING, required: true}
+      - {name: region_name, type: STRING, required: true}
+      - {name: area_code, type: STRING, required: false, default: "CAST(NULL AS STRING)"}
+      - {name: available_trucks, type: INT, required: false, default: "2"}
+      - {name: default_truck_capacity_thb, type: "DECIMAL(18,2)", required: false, default: "50000000"}
+      - {name: average_speed_kmh, type: DOUBLE, required: false, default: "35"}
+      - {name: cost_per_km_thb, type: "DECIMAL(18,2)", required: false, default: "25"}
+      - {name: co2_per_km_kg, type: DOUBLE, required: false, default: "0.3"}
+      - {name: crew_per_vehicle, type: INT, required: false, default: "2"}
+      - {name: delivery_target_pct, type: DOUBLE, required: false, default: "80"}
+      - {name: pickup_trigger_pct, type: DOUBLE, required: false, default: "85"}
+      - {name: cash_keep_pct, type: DOUBLE, required: false, default: "40"}
+      - {name: city_service_minutes, type: INT, required: false, default: "20"}
+      - {name: district_service_minutes, type: INT, required: false, default: "25"}
+      - {name: max_route_duration_hours, type: DOUBLE, required: false, default: "8"}
+      - {name: updated_at, type: TIMESTAMP, required: true}
+
+  machine_snapshot:
+    tier: source
+    grain: one row per machine for the planning day
+    purpose: Machines page table/map + Overview machine KPIs
+    powers: [Machines, Overview]
+    blocking: true
+    customer_hint: >
+      Daily machine cash position + forecast + recommended action. Often joined
+      from estate master + overnight balance + ML forecast output.
+    columns:
+      - {name: business_date, type: DATE, required: true}
+      - {name: region_code, type: STRING, required: true}
+      - {name: area_code, type: STRING, required: false, default: "CAST(NULL AS STRING)"}
+      - {name: machine_id, type: STRING, required: true}
+      - {name: machine_type, type: STRING, required: false, default: "'RCM'"}
+      - {name: location_name, type: STRING, required: true}
+      - {name: district_name, type: STRING, required: false, default: "CAST(NULL AS STRING)"}
+      - {name: latitude, type: DOUBLE, required: true}
+      - {name: longitude, type: DOUBLE, required: true}
+      - {name: actual_cash_d_minus_1, type: "DECIMAL(18,2)", required: true}
+      - {name: predicted_cash_d, type: "DECIMAL(18,2)", required: true}
+      - {name: cash_capacity_thb, type: "DECIMAL(18,2)", required: true}
+      - {name: deposit_amount_d, type: "DECIMAL(18,2)", required: false, default: "CAST(NULL AS DECIMAL(18,2))"}
+      - {name: withdrawal_amount_d, type: "DECIMAL(18,2)", required: false, default: "CAST(NULL AS DECIMAL(18,2))"}
+      - {name: prediction_confidence, type: DOUBLE, required: false, default: "CAST(NULL AS DOUBLE)"}
+      - {name: action_type, type: STRING, required: true, values: [DELIVERY, PICKUP, BOTH, NO_ACTION]}
+      - {name: health_status, type: STRING, required: true, values: [HEALTHY, WATCH, ACTION_NEEDED, CRITICAL, NO_DATA]}
+      - {name: risk_level, type: STRING, required: true, values: [VERY_HIGH, HIGH, MEDIUM, LOW]}
+      - {name: emergency_flag, type: BOOLEAN, required: true}
+      - {name: model_id, type: STRING, required: false, default: "CAST(NULL AS STRING)"}
+      - {name: model_version, type: STRING, required: false, default: "CAST(NULL AS STRING)"}
+      - {name: updated_at, type: TIMESTAMP, required: true}
+
+  machine_daily_flow:
+    tier: source
+    grain: one row per (machine_id, series_date, value_type)
+    purpose: Machine cash trend charts (~14 days)
+    powers: [Machines]
+    blocking: false
+    on_gap: placeholder
+    customer_hint: Historical actual + predicted deposit/withdraw series per machine.
+    columns:
+      - {name: business_date, type: DATE, required: true}
+      - {name: region_code, type: STRING, required: true}
+      - {name: machine_id, type: STRING, required: true}
+      - {name: series_date, type: DATE, required: true}
+      - {name: value_type, type: STRING, required: true, values: [ACTUAL, PREDICTED]}
+      - {name: deposit_amount_thb, type: "DECIMAL(18,2)", required: true}
+      - {name: withdrawal_amount_thb, type: "DECIMAL(18,2)", required: true}
+      - {name: net_amount_thb, type: "DECIMAL(18,2)", required: true}
+      - {name: model_version, type: STRING, required: false, default: "CAST(NULL AS STRING)"}
+      - {name: updated_at, type: TIMESTAMP, required: true}
+
+  machine_denomination:
+    tier: source
+    grain: one row per (machine_id, denomination_thb)
+    purpose: Machine denomination mix donut
+    powers: [Machines]
+    blocking: false
+    on_gap: placeholder
+    customer_hint: Predicted note mix (1000/500/100/50). Mix % should sum ~100 per machine.
+    columns:
+      - {name: business_date, type: DATE, required: true}
+      - {name: region_code, type: STRING, required: true}
+      - {name: machine_id, type: STRING, required: true}
+      - {name: denomination_thb, type: INT, required: true}
+      - {name: predicted_note_count, type: INT, required: false, default: "CAST(NULL AS INT)"}
+      - {name: predicted_amount_thb, type: "DECIMAL(18,2)", required: false, default: "CAST(NULL AS DECIMAL(18,2))"}
+      - {name: predicted_mix_pct, type: DOUBLE, required: true}
+      - {name: updated_at, type: TIMESTAMP, required: true}
+
+  branch_snapshot:
+    tier: source
+    grain: one row per branch including depot (is_depot=true)
+    purpose: Branches page + branch-inputs for Optimization overlay
+    powers: [Branches, Optimization, Overview]
+    blocking: true
+    customer_hint: >
+      Daily branch vault position + forecast in/out + action. Must include exactly
+      one depot row for the region.
+    columns:
+      - {name: business_date, type: DATE, required: true}
+      - {name: region_code, type: STRING, required: true}
+      - {name: area_code, type: STRING, required: false, default: "CAST(NULL AS STRING)"}
+      - {name: branch_code, type: STRING, required: true}
+      - {name: branch_name, type: STRING, required: true}
+      - {name: district_name, type: STRING, required: false, default: "CAST(NULL AS STRING)"}
+      - {name: latitude, type: DOUBLE, required: true}
+      - {name: longitude, type: DOUBLE, required: true}
+      - {name: is_depot, type: BOOLEAN, required: true}
+      - {name: actual_cash_d_minus_1, type: "DECIMAL(18,2)", required: true}
+      - {name: predicted_deposit_d, type: "DECIMAL(18,2)", required: true}
+      - {name: predicted_withdrawal_d, type: "DECIMAL(18,2)", required: true}
+      - {name: predicted_cash_d, type: "DECIMAL(18,2)", required: true}
+      - {name: cash_capacity_thb, type: "DECIMAL(18,2)", required: true}
+      - {name: minimum_threshold_thb, type: "DECIMAL(18,2)", required: false, default: "CAST(NULL AS DECIMAL(18,2))"}
+      - {name: delivery_amount_thb, type: "DECIMAL(18,2)", required: false, default: "CAST(NULL AS DECIMAL(18,2))"}
+      - {name: pickup_amount_thb, type: "DECIMAL(18,2)", required: false, default: "CAST(NULL AS DECIMAL(18,2))"}
+      - {name: action_type, type: STRING, required: true, values: [DELIVERY, PICKUP, BOTH, NO_ACTION]}
+      - {name: health_status, type: STRING, required: true, values: [HEALTHY, WATCH, ACTION_NEEDED, CRITICAL, NO_DATA]}
+      - {name: emergency_flag, type: BOOLEAN, required: true}
+      - {name: prediction_confidence, type: DOUBLE, required: false, default: "CAST(NULL AS DOUBLE)"}
+      - {name: service_minutes, type: INT, required: false, default: "CAST(NULL AS INT)"}
+      - {name: window_start, type: STRING, required: false, default: "CAST(NULL AS STRING)"}
+      - {name: window_end, type: STRING, required: false, default: "CAST(NULL AS STRING)"}
+      - {name: model_id, type: STRING, required: false, default: "CAST(NULL AS STRING)"}
+      - {name: model_version, type: STRING, required: false, default: "CAST(NULL AS STRING)"}
+      - {name: updated_at, type: TIMESTAMP, required: true}
+
+  branch_daily_flow:
+    tier: source
+    grain: one row per (branch_code, series_date, value_type)
+    purpose: Branch vault trend charts
+    powers: [Branches]
+    blocking: false
+    on_gap: placeholder
+    customer_hint: Same shape as machine_daily_flow; join key branch_code.
+    columns:
+      - {name: business_date, type: DATE, required: true}
+      - {name: region_code, type: STRING, required: true}
+      - {name: branch_code, type: STRING, required: true}
+      - {name: series_date, type: DATE, required: true}
+      - {name: value_type, type: STRING, required: true, values: [ACTUAL, PREDICTED]}
+      - {name: deposit_amount_thb, type: "DECIMAL(18,2)", required: true}
+      - {name: withdrawal_amount_thb, type: "DECIMAL(18,2)", required: true}
+      - {name: net_amount_thb, type: "DECIMAL(18,2)", required: true}
+      - {name: model_version, type: STRING, required: false, default: "CAST(NULL AS STRING)"}
+      - {name: updated_at, type: TIMESTAMP, required: true}
+
+  branch_denomination_gap:
+    tier: source
+    grain: one row per (branch_code, denomination_thb)
+    purpose: Branch denomination surplus/shortfall bars
+    powers: [Branches]
+    blocking: false
+    on_gap: placeholder
+    customer_hint: Positive = surplus, negative = shortfall, by note face value.
+    columns:
+      - {name: business_date, type: DATE, required: true}
+      - {name: region_code, type: STRING, required: true}
+      - {name: branch_code, type: STRING, required: true}
+      - {name: denomination_thb, type: INT, required: true}
+      - {name: surplus_shortfall_thb, type: "DECIMAL(18,2)", required: true}
+      - {name: updated_at, type: TIMESTAMP, required: true}
+
+  route_summary:
+    tier: source
+    grain: one row per (route_id, route_plan_type)
+    purpose: Route Tracking list KPIs + Truck Detail header
+    powers: [Route Tracking, Truck Detail, Overview]
+    blocking: true
+    customer_hint: >
+      Optimized (and optionally ACTUAL) route headers from CIT / OR-Tools
+      output. Provide both OPTIMIZED and ACTUAL when comparing plans.
+    columns:
+      - {name: business_date, type: DATE, required: true}
+      - {name: region_code, type: STRING, required: true}
+      - {name: route_id, type: STRING, required: true}
+      - {name: route_plan_type, type: STRING, required: true, values: [OPTIMIZED, ACTUAL]}
+      - {name: route_label, type: STRING, required: false, default: "CAST(NULL AS STRING)"}
+      - {name: truck_id, type: STRING, required: true}
+      - {name: route_status, type: STRING, required: true, values: [ON_TRACK, DELAYED, AT_RISK]}
+      - {name: depot_code, type: STRING, required: true}
+      - {name: depot_name, type: STRING, required: true}
+      - {name: depot_latitude, type: DOUBLE, required: true}
+      - {name: depot_longitude, type: DOUBLE, required: true}
+      - {name: total_stops, type: INT, required: true}
+      - {name: completed_stops, type: INT, required: true}
+      - {name: remaining_stops, type: INT, required: true}
+      - {name: total_distance_km, type: DOUBLE, required: true}
+      - {name: distance_left_km, type: DOUBLE, required: false, default: "CAST(NULL AS DOUBLE)"}
+      - {name: total_duration_minutes, type: INT, required: false, default: "CAST(NULL AS INT)"}
+      - {name: eta_return, type: STRING, required: false, default: "CAST(NULL AS STRING)"}
+      - {name: vehicle_capacity_thb, type: "DECIMAL(18,2)", required: true}
+      - {name: cash_on_board_thb, type: "DECIMAL(18,2)", required: false, default: "CAST(NULL AS DECIMAL(18,2))"}
+      - {name: pickup_amount_thb, type: "DECIMAL(18,2)", required: false, default: "CAST(NULL AS DECIMAL(18,2))"}
+      - {name: delivery_amount_thb, type: "DECIMAL(18,2)", required: false, default: "CAST(NULL AS DECIMAL(18,2))"}
+      - {name: vehicle_utilization_pct, type: DOUBLE, required: false, default: "CAST(NULL AS DOUBLE)"}
+      - {name: sla_achievement_pct, type: DOUBLE, required: false, default: "CAST(NULL AS DOUBLE)"}
+      - {name: cit_cost_thb, type: "DECIMAL(18,2)", required: false, default: "CAST(NULL AS DECIMAL(18,2))"}
+      - {name: route_color_hex, type: STRING, required: false, default: "CAST(NULL AS STRING)"}
+      - {name: updated_at, type: TIMESTAMP, required: true}
+
+  route_stops:
+    tier: source
+    grain: one row per (route_id, route_plan_type, stop_sequence)
+    purpose: Stop list + map polyline (lat/lng ordered by stop_sequence)
+    powers: [Route Tracking, Truck Detail]
+    blocking: true
+    customer_hint: Ordered stops including START and RETURN. Join to route_summary on route_id + route_plan_type + truck_id.
+    columns:
+      - {name: business_date, type: DATE, required: true}
+      - {name: region_code, type: STRING, required: true}
+      - {name: route_id, type: STRING, required: true}
+      - {name: route_plan_type, type: STRING, required: true, values: [OPTIMIZED, ACTUAL]}
+      - {name: truck_id, type: STRING, required: true}
+      - {name: stop_sequence, type: INT, required: true}
+      - {name: stop_code, type: STRING, required: true}
+      - {name: stop_name, type: STRING, required: true}
+      - {name: stop_type, type: STRING, required: true, values: [START, DELIVERY, PICKUP, BOTH, MIXED, EMERGENCY, RETURN]}
+      - {name: stop_status, type: STRING, required: true, values: [COMPLETED, IN_PROGRESS, PENDING, SKIPPED]}
+      - {name: eta, type: STRING, required: false, default: "CAST(NULL AS STRING)"}
+      - {name: amount_thb, type: "DECIMAL(18,2)", required: false, default: "CAST(NULL AS DECIMAL(18,2))"}
+      - {name: latitude, type: DOUBLE, required: true}
+      - {name: longitude, type: DOUBLE, required: true}
+      - {name: leg_km, type: DOUBLE, required: false, default: "CAST(NULL AS DOUBLE)"}
+      - {name: cumulative_km, type: DOUBLE, required: false, default: "CAST(NULL AS DOUBLE)"}
+      - {name: updated_at, type: TIMESTAMP, required: true}

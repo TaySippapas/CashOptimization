@@ -1,0 +1,1 @@
+import{h as e}from"./index-C3PowwdH.js";function t(){return e()}export{t};

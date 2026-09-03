@@ -1,0 +1,35 @@
+command:
+  - "python"
+  - "-m"
+  - "uvicorn"
+  - "app:app"
+  - "--host"
+  - "0.0.0.0"
+  - "--port"
+  - "8000"
+
+env:
+  - name: DATABRICKS_WAREHOUSE_ID
+    valueFrom: "sql-warehouse"
+  - name: APP_CATALOG
+    value: "mdp_dev_dit"
+  - name: APP_SCHEMA
+    value: "default"
+  - name: APP_BUSINESS_DATE
+    value: "auto"
+  - name: APP_REGION_CODE
+    value: "Singapore"
+  - name: USE_UNITY_CATALOG
+    value: "true"
+  - name: V2_CATALOG
+    value: "mdp_dev_dit"
+  - name: V2_SCHEMA
+    value: "default"
+  - name: V2_WAREHOUSE_ID
+    valueFrom: "sql-warehouse"
+
+resources:
+  - name: "sql-warehouse"
+    sql_warehouse:
+      id: "ef9767b2a2846fa7"
+      permission: "CAN_USE"

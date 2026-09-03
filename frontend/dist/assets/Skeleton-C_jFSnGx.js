@@ -1,0 +1,1 @@
+import{t as e}from"./jsx-runtime-asaBOPqX.js";var t=e();function n({width:e=`100%`,height:n=14,radius:r=6,style:i,className:a}){return(0,t.jsx)(`span`,{className:`skeleton ${a??``}`,style:{width:e,height:n,borderRadius:r,...i},"aria-hidden":!0})}export{n as t};

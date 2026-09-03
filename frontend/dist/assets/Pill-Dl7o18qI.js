@@ -1,0 +1,1 @@
+import{t as e}from"./jsx-runtime-asaBOPqX.js";var t=e();function n({color:e,children:n,size:r=`sm`,style:i}){return(0,t.jsx)(`span`,{className:`pill-tag${r===`lg`?` lg`:``}`,style:{color:e,borderColor:`${e}55`,background:`${e}18`,...i},children:n})}export{n as t};
