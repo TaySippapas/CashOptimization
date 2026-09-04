@@ -8,8 +8,8 @@
 | 4 | `fact_branch_denomination` | 13 |
 | 5 | `dim_truck` | 6 |
 | 6 | `dim_machine` | 10 |
-| 7 | `fact_machine_position` | 15 |
-| 8 | `fact_machine_denomination` | 18 |
+| 7 | `fact_machine_position` | 16 |
+| 8 | `fact_machine_denomination` | 20 |
 | 9 | `fact_machine_flow_daily` | 13 |
 | 10 | `fact_route_summary` | 37 |
 | 11 | `fact_route_stop` | 20 |
@@ -154,8 +154,21 @@
 
 ## 7. `fact_machine_position`
 
-**Workbook sheet:** `fact_machine_position`  
-**Field count:** 16
+**Field count:** 16  
+**Row count:** 520 (61 RCM + 24 3IN1 + 435 ATM)
+
+**Source tables:**
+- `atm_remaining_history` — actual cash d-1 (ALL machine types)
+- `rcm_forecast_2026` — RCM/3IN1 forecast (per-denom, per-direction)
+- `di_atm_cash_forecast_jan_apr` — ATM forecast (total withdrawal only, no per-denom)
+- `br_opth_unified_rcm_denom_dev` — RCM replenishment plan (add + remove)
+- `di_atm_cash_optimization` + `di_atm_cash_optimization_emer` — ATM replenishment plan (add only; regular + emergency combined)
+
+**ATM-specific notes:**
+- `predicted_deposit_d` = NULL (ATM is withdrawal-only, no deposit forecast source)
+- `remove_amount_thb` = NULL (ATM source has no remove operation)
+- `action_type`: ATM can only be "No Action" or "Swap (Near Empty)" (never "Near Full")
+- `model_id` = 'di_atm_cash_forecast' for ATM rows, 'rcm_forecast_2026' for RCM/3IN1
 
 | field | type | definition | Additional note 1 |
 | --- | --- | --- | --- |
@@ -180,8 +193,19 @@
 
 ## 8. `fact_machine_denomination`
 
-**Workbook sheet:** `fact_machine_denomination`  
-**Field count:** 20
+**Field count:** 20  
+**Row count:** 1,560 (520 machines × 3 denoms)
+
+**Source tables:**
+- `atm_remaining_history` — actual per-denom + alltime max (ALL machine types)
+- `rcm_forecast_2026` — RCM/3IN1 forecast per-denom (deposit + withdrawal)
+- `br_opth_unified_rcm_denom_dev` — RCM delivery (add) + remove per-denom
+- `di_atm_cash_optimization` + `di_atm_cash_optimization_emer` — ATM delivery per-denom (box_a+b=1000, box_c=500, box_d=100)
+
+**ATM-specific notes:**
+- `predicted_*` columns (deposit/withdrawal/remaining) = NULL (honest: ATM forecast has total amount only, no per-denom breakdown)
+- `remove_note_count` / `remove_amount_thb` = NULL (ATM source has no remove operation)
+- Actual per-denom and delivery per-denom ARE available for ATM
 
 | field | type | definition |
 | --- | --- | --- |
@@ -210,8 +234,19 @@
 
 ## 9. `fact_machine_flow_daily`
 
-**Workbook sheet:** `fact_machine_flow_daily`  
-**Field count:** 13
+**Field count:** 13  
+**Row count:** 4,087
+
+**Source tables:**
+- `v_atm_txn_denom_base24` — ACTUAL daily transactions (RCM/3IN1 only; ATM NOT in this source yet)
+- `atm_remaining_history` — ACTUAL daily remaining (ALL machine types)
+- `rcm_forecast_2026` — RCM/3IN1 FORECAST (per-denom deposit + withdrawal)
+- `di_atm_cash_forecast_jan_apr` — ATM FORECAST (total withdrawal only)
+
+**ATM-specific notes:**
+- ATM has FORECAST rows only (no ACTUAL rows — `v_atm_txn_denom_base24` doesn't include ATM data yet)
+- ATM forecast: `deposit_amount_thb` = NULL (no deposit for ATM), `withdrawal_amount_thb` from forecast amount
+- Remaining calculated via cumulative window from actual_d_minus_1
 
 | field | type | definition |
 | --- | --- | --- |

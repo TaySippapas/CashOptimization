@@ -1,1 +1,0 @@
-import{t as e}from"./jsx-runtime-asaBOPqX.js";var t=e();function n({color:e}){return(0,t.jsx)(`span`,{className:`status-dot`,style:{background:e}})}export{n as t};

@@ -492,8 +492,9 @@ def fetch_machine_tracks(business_date: str | None = None) -> tuple[str, list[di
         if not key:
             continue
         # Mix (note counts for donut)
+        # Use predicted_remaining if available; fallback to actual (ATM has no per-denom forecast)
         dd = denom_mix_by.setdefault(mid, {"b1000": 0, "b500": 0, "b100": 0})
-        dd[key] = _int(r["predicted_remaining_note_count"]) or 0
+        dd[key] = _int(r["predicted_remaining_note_count"]) or _int(r["actual_note_count_d_minus_1"]) or 0
         # Detail (for tooltip)
         detail_list = denom_detail_by.setdefault(mid, [])
         detail_list.append({
@@ -790,3 +791,192 @@ def update_route_param(parameter: str, value: float) -> bool:
                 [value, parameter],
             )
     return True
+
+
+# ---------------------------------------------------------------------------
+#  Overview Summary — Demand vs Plan
+# ---------------------------------------------------------------------------
+
+def fetch_overview_summary() -> dict:
+    """Cross-domain overview: demand (prediction) vs plan (route), coverage, CIT cost."""
+    with _connection() as conn:
+        with conn.cursor() as cur:
+            # --- Demand: Branch predictions ---
+            br_demand = _query(cur, f"""
+                SELECT action_type,
+                       COUNT(*) AS cnt,
+                       COALESCE(SUM(delivery_amount_thb), 0) AS delivery_amt,
+                       COALESCE(SUM(actual_cash_d_minus_1), 0) AS total_actual,
+                       COALESCE(SUM(predicted_cash_d), 0) AS total_predicted,
+                       COALESCE(SUM(cost_of_fund_thb), 0) AS total_cof,
+                       MAX(business_date) AS biz_date
+                FROM {_t('fact_cash_position')}
+                GROUP BY action_type
+            """)
+
+            # --- Demand: Machine predictions ---
+            mc_demand = _query(cur, f"""
+                SELECT action_type,
+                       COUNT(*) AS cnt,
+                       COALESCE(SUM(delivery_amount_thb), 0) AS delivery_amt,
+                       COALESCE(SUM(actual_cash_d_minus_1), 0) AS total_actual,
+                       COALESCE(SUM(predicted_cash_d), 0) AS total_predicted,
+                       COALESCE(SUM(cost_of_fund_thb), 0) AS total_cof,
+                       MAX(business_date) AS biz_date
+                FROM {_t('fact_machine_position')}
+                GROUP BY action_type
+            """)
+
+            # --- Plan: Route summary aggregate ---
+            plan_agg = _query(cur, f"""
+                SELECT COUNT(*) AS trucks,
+                       COALESCE(SUM(total_stops), 0) AS total_stops,
+                       COALESCE(SUM(total_distance_km), 0) AS total_km,
+                       COALESCE(SUM(total_duration_minutes), 0) AS total_minutes,
+                       COALESCE(AVG(total_duration_minutes), 0) AS avg_minutes,
+                       COALESCE(MAX(total_duration_minutes), 0) AS max_minutes,
+                       SUM(CASE WHEN total_duration_minutes > 480 THEN 1 ELSE 0 END) AS ot_trucks,
+                       COALESCE(SUM(cost_of_transport), 0) AS total_cot,
+                       COALESCE(SUM(delivery_amount_thb_branch), 0) AS delivery_branch,
+                       COALESCE(SUM(delivery_amount_thb_machine), 0) AS delivery_machine,
+                       COALESCE(AVG(vehicle_utilization_pct), 0) AS avg_util,
+                       COALESCE(AVG(sla_achievement_pct), 0) AS avg_sla,
+                       MAX(business_date) AS biz_date
+                FROM {_t('fact_route_summary')}
+            """)
+
+            # --- Plan: Stop breakdown by type ---
+            stop_types = _query(cur, f"""
+                SELECT stop_type, COUNT(*) AS cnt, COUNT(DISTINCT stop_code) AS distinct_codes
+                FROM {_t('fact_route_stop')}
+                WHERE action_type != 'START' AND action_type != 'RETURN'
+                GROUP BY stop_type
+            """)
+
+            # --- Coverage: Branch matching (KT prefix) ---
+            br_coverage = _query(cur, f"""
+                WITH predicted AS (
+                    SELECT branch_code
+                    FROM {_t('fact_cash_position')}
+                    WHERE action_type = 'DELIVERY'
+                ),
+                planned AS (
+                    SELECT DISTINCT stop_code
+                    FROM {_t('fact_route_stop')}
+                    WHERE stop_type = 'Branch'
+                )
+                SELECT
+                    (SELECT COUNT(*) FROM predicted) AS demand,
+                    (SELECT COUNT(*) FROM planned) AS planned,
+                    (SELECT COUNT(*) FROM predicted p
+                     WHERE EXISTS (
+                       SELECT 1 FROM planned r
+                       WHERE r.stop_code LIKE CONCAT('%KT', p.branch_code, '%')
+                     )) AS covered
+            """)
+
+            # --- Coverage: Machine matching (direct code) ---
+            mc_coverage = _query(cur, f"""
+                WITH predicted AS (
+                    SELECT machine_id
+                    FROM {_t('fact_machine_position')}
+                    WHERE action_type != 'No Action'
+                ),
+                planned AS (
+                    SELECT DISTINCT stop_code
+                    FROM {_t('fact_route_stop')}
+                    WHERE stop_type IN ('ATM', 'RCM', '3IN1')
+                )
+                SELECT
+                    (SELECT COUNT(*) FROM predicted) AS demand,
+                    (SELECT COUNT(*) FROM planned) AS planned,
+                    (SELECT COUNT(*) FROM predicted p
+                     WHERE EXISTS (
+                       SELECT 1 FROM planned r
+                       WHERE r.stop_code LIKE CONCAT('%', p.machine_id, '%')
+                     )) AS covered
+            """)
+
+    # --- Assemble response ---
+    def _by_action(rows, action):
+        for r in rows:
+            if r.get("action_type") == action:
+                return r
+        return {}
+
+    def _sum_field(rows, field):
+        return sum(_num(r.get(field)) for r in rows)
+
+    br_delivery = _by_action(br_demand, "DELIVERY")
+    br_no_action = _by_action(br_demand, "NO_ACTION")
+    mc_service = [r for r in mc_demand if r.get("action_type") != "No Action"]
+    mc_no_action = _by_action(mc_demand, "No Action")
+
+    pa = plan_agg[0] if plan_agg else {}
+    bc = br_coverage[0] if br_coverage else {}
+    mc = mc_coverage[0] if mc_coverage else {}
+
+    stop_map = {r["stop_type"]: {"count": _int(r["cnt"]), "distinct": _int(r["distinct_codes"])} for r in stop_types}
+
+    total_actual_cash = _num(_sum_field(br_demand, "total_actual")) + _num(_sum_field(mc_demand, "total_actual"))
+    total_cof = _num(_sum_field(br_demand, "total_cof")) + _num(_sum_field(mc_demand, "total_cof"))
+    total_cot = _num(pa.get("total_cot"))
+
+    return {
+        "demand": {
+            "branch": {
+                "total": _int(_sum_field(br_demand, "cnt")),
+                "needService": _int(br_delivery.get("cnt")),
+                "deliveryAmount": _num(br_delivery.get("delivery_amt")),
+                "totalActualCash": _num(_sum_field(br_demand, "total_actual")),
+                "businessDate": _date_str(br_delivery.get("biz_date") or br_no_action.get("biz_date")),
+            },
+            "machine": {
+                "total": _int(_sum_field(mc_demand, "cnt")),
+                "needService": sum(_int(r.get("cnt")) for r in mc_service),
+                "serviceBreakdown": [
+                    {"action": r.get("action_type", ""), "count": _int(r.get("cnt"))}
+                    for r in mc_service
+                ],
+                "totalActualCash": _num(_sum_field(mc_demand, "total_actual")),
+                "businessDate": _date_str(mc_no_action.get("biz_date") or (mc_service[0].get("biz_date") if mc_service else "")),
+            },
+        },
+        "plan": {
+            "trucks": _int(pa.get("trucks")),
+            "totalStops": _int(pa.get("total_stops")),
+            "totalDistanceKm": round(_num(pa.get("total_km")), 1),
+            "totalDurationMinutes": round(_num(pa.get("total_minutes")), 0),
+            "avgDurationMinutes": round(_num(pa.get("avg_minutes")), 0),
+            "maxDurationMinutes": round(_num(pa.get("max_minutes")), 0),
+            "otTrucks": _int(pa.get("ot_trucks")),
+            "deliveryAmountBranch": _num(pa.get("delivery_branch")),
+            "deliveryAmountMachine": _num(pa.get("delivery_machine")),
+            "avgUtilizationPct": round(_num(pa.get("avg_util")), 1),
+            "avgSlaPct": round(_num(pa.get("avg_sla")), 1),
+            "stopsByType": stop_map,
+            "businessDate": _date_str(pa.get("biz_date")),
+        },
+        "coverage": {
+            "branch": {
+                "demand": _int(bc.get("demand")),
+                "planned": _int(bc.get("planned")),
+                "covered": _int(bc.get("covered")),
+                "unserved": _int(bc.get("demand")) - _int(bc.get("covered")),
+                "extra": _int(bc.get("planned")) - _int(bc.get("covered")),
+            },
+            "machine": {
+                "demand": _int(mc.get("demand")),
+                "planned": _int(mc.get("planned")),
+                "covered": _int(mc.get("covered")),
+                "unserved": _int(mc.get("demand")) - _int(mc.get("covered")),
+                "extra": _int(mc.get("planned")) - _int(mc.get("covered")),
+            },
+        },
+        "cost": {
+            "cot": total_cot,
+            "cof": total_cof if total_cof else None,
+            "citTotal": total_cot + total_cof,
+        },
+        "cashUnderManagement": total_actual_cash,
+    }

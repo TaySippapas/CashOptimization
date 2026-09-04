@@ -1,1 +1,0 @@
-import{o as e}from"./jsx-runtime-asaBOPqX.js";import{d as t,f as n,l as r,u as i}from"./map.utils-DwsOwa3j.js";function a(e,t,n){t.center!==n.center&&e.setLatLng(t.center),t.radius!=null&&t.radius!==n.radius&&e.setRadius(t.radius)}var o=e(t(),1),s=r(function({center:e,children:t,...r},a){let s=new o.CircleMarker(e,r);return i(s,n(a,{overlayContainer:s}))},a);export{s as t};

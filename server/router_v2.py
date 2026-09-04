@@ -275,3 +275,16 @@ def post_route_param(body: RouteParamUpdate):
     except Exception as e:
         log.exception("v2 /route-params update failed")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ── Overview Summary (Demand vs Plan) ─────────────────────────────
+
+@router.get("/overview-summary")
+def get_overview_summary():
+    try:
+        data = repo.fetch_overview_summary()
+        log.info("v2 /overview-summary OK")
+        return {"source": "unity_catalog", **data}
+    except Exception as e:
+        log.exception("v2 /overview-summary failed")
+        return {"source": "error", "error": str(e), "errorType": type(e).__name__}

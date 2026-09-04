@@ -3,6 +3,7 @@ import { Navigate, type RouteObject } from "react-router-dom";
 import App from "./App";
 
 const ExecutiveOverviewPage = lazy(() => import("@/pages/overview/ExecutiveOverviewPage"));
+const ExecutiveOverviewV2Page = lazy(() => import("@/pages/overview/ExecutiveOverviewV2Page"));
 const MachineTrackingPage = lazy(() => import("@/pages/machines/MachineTrackingPage"));
 const BranchTrackingPage = lazy(() => import("@/pages/branches/BranchTrackingPage"));
 const RouteTrackingPage = lazy(() => import("@/pages/routes/RouteTrackingPage"));
@@ -21,6 +22,7 @@ export const routes: RouteObject[] = [
     children: [
       { index: true, element: <Navigate to="/overview" replace /> },
       { path: "overview", element: <ExecutiveOverviewPage /> },
+      { path: "overview-v2", element: <ExecutiveOverviewV2Page /> },
       { path: "machines", element: <MachineTrackingPage /> },
       { path: "branches", element: <BranchTrackingPage /> },
       { path: "routes", element: <RouteTrackingPage /> },

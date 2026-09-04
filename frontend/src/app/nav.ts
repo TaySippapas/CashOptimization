@@ -1,5 +1,6 @@
 import {
   LayoutGrid,
+  BarChart3,
   Cpu,
   Building2,
   Route as RouteIcon,
@@ -15,6 +16,7 @@ export interface NavItem {
 
 export const NAV_ITEMS: NavItem[] = [
   { to: "/overview", label: "Overview", icon: LayoutGrid },
+  { to: "/overview-v2", label: "Overview V2", icon: BarChart3 },
   { to: "/machines", label: "Machines", icon: Cpu },
   { to: "/branches", label: "Branches", icon: Building2 },
   { to: "/routes", label: "Route Tracking", icon: RouteIcon },

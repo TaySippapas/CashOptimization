@@ -59,12 +59,15 @@ export default function MachineTrackingPage() {
   }, [selectedId, isAll]);
 
   // Aggregate trend for "All" view
+  // Use the machine with the longest trend as the base (some machines may have empty trend)
   const allTrend = useMemo<DayFlow[]>(() => {
     if (!machines.length) return [];
-    return machines[0].trend.map((_, i) => {
+    const base = machines.reduce((a, b) => (b.trend?.length ?? 0) > (a.trend?.length ?? 0) ? b : a, machines[0]);
+    if (!base.trend?.length) return [];
+    return base.trend.map((_, i) => {
       const deposit = machines.reduce((s, m) => s + (m.trend?.[i]?.deposit ?? 0), 0);
       const withdraw = machines.reduce((s, m) => s + (m.trend?.[i]?.withdraw ?? 0), 0);
-      return { day: machines[0]?.trend?.[i]?.day ?? `Day ${i + 1}`, deposit, withdraw, net: deposit - withdraw };
+      return { day: base.trend?.[i]?.day ?? `Day ${i + 1}`, deposit, withdraw, net: deposit - withdraw };
     });
   }, [machines]);
 
