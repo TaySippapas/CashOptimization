@@ -1,1 +1,0 @@
-import{j as n}from"./index-CP-TjafC.js";function i({width:e="100%",height:s=14,radius:r=6,style:t,className:a}){return n.jsx("span",{className:`skeleton ${a??""}`,style:{width:e,height:s,borderRadius:r,...t},"aria-hidden":!0})}export{i as S};

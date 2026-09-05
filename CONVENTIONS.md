@@ -34,7 +34,7 @@ frontend/src/
 │   routeExec.ts  tracking.ts  scenario.ts  executiveOverview.ts
 │   alertsData.ts  reportsData.ts  aiPerformance.ts
 ├── api/
-│   ├── backend.ts             ← backend api)
+│   ├── backend.ts             ← backend api
 │   └── osrm.ts                ← external OSRM routing service
 ├── utils/                     ← helper functions
 │   ├── format.ts

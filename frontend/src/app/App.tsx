@@ -92,8 +92,10 @@ export default function App() {
     setDataLoading(true);
     (async () => {
       const date = selectedDate || undefined;
-      const health = await fetchHealth();
-      const [m, b, bi, r] = await Promise.all([
+      // health used to be awaited first, serialising a round trip ahead of the
+      // batch; nothing below needs it before the others start.
+      const [health, m, b, bi, r] = await Promise.all([
+        fetchHealth(),
         fetchMachinesFromApi(date),
         fetchBranchesFromApi(date),
         fetchBranchInputsFromApi(date),

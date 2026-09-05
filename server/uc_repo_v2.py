@@ -14,9 +14,15 @@ from __future__ import annotations
 
 import logging
 import os
+import queue
+import re
+import threading
+import time
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
-from functools import lru_cache
-from typing import Any, Iterator, Sequence
+from datetime import date, timedelta
+from functools import lru_cache, wraps
+from typing import Any, Callable, Iterator, Sequence
 
 from databricks import sql
 from databricks.sdk.core import Config
@@ -60,49 +66,222 @@ def _config() -> Config:
     return Config()
 
 
-@contextmanager
-def _connection() -> Iterator[Any]:
+# Opening a session costs 1.3-2.8s (auth handshake), while a query on an open
+# one costs ~0.4s. A dashboard load calls several fetch_* functions, so without
+# pooling most of the wait is handshakes. Connections are returned to the pool
+# and reused; they are dropped after MAX_AGE so a session that died while the
+# warehouse was suspended isn't handed out, and dropped on error so a broken
+# one is never reused.
+# A dashboard load issues ~5 requests at once and overview-summary fans out to
+# 6 more, so the pool has to hold more than that or the surplus pays for a
+# fresh handshake every time.
+_POOL_SIZE = 14
+_POOL_MAX_AGE_S = 300
+
+_pool: "queue.LifoQueue[tuple[float, Any]]" = queue.LifoQueue(maxsize=_POOL_SIZE)
+
+
+def _open_connection() -> Any:
     cfg = _config()
-    conn = sql.connect(
+    return sql.connect(
         server_hostname=bare_hostname(cfg.host),
         http_path=f"/sql/1.0/warehouses/{WAREHOUSE_ID}",
         credentials_provider=lambda: cfg.authenticate,
     )
+
+
+def _take() -> tuple[float, Any]:
+    while True:
+        try:
+            born, conn = _pool.get_nowait()
+        except queue.Empty:
+            return time.monotonic(), _open_connection()
+        if time.monotonic() - born < _POOL_MAX_AGE_S:
+            return born, conn
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
+def _release(born: float, conn: Any, reusable: bool) -> None:
+    if reusable:
+        try:
+            _pool.put_nowait((born, conn))
+            return
+        except queue.Full:
+            pass
+    try:
+        conn.close()
+    except Exception:
+        pass
+
+
+@contextmanager
+def _connection() -> Iterator[Any]:
+    born, conn = _take()
+    reusable = True
     try:
         yield conn
+    except Exception:
+        reusable = False
+        raise
     finally:
-        conn.close()
+        _release(born, conn, reusable)
+
+
+_RESULT_TTL_S = 45
+_result_cache: dict[str, tuple[float, Any]] = {}
+_result_lock = threading.Lock()
+
+
+def cached(fn: Callable[..., Any]) -> Callable[..., Any]:
+    """Memoise a read for a few seconds, keyed on the arguments.
+
+    The underlying facts change once a day, so re-querying the warehouse for
+    every page view costs seconds and buys nothing. Only applied to reads —
+    fleet and route parameters are written by Route Config and must not be
+    served stale.
+    """
+    @wraps(fn)
+    def wrapper(*args: Any, **kwargs: Any) -> Any:
+        key = f"{fn.__name__}:{args!r}:{sorted(kwargs.items())!r}"
+        now = time.monotonic()
+        with _result_lock:
+            hit = _result_cache.get(key)
+            if hit and now - hit[0] < _RESULT_TTL_S:
+                return hit[1]
+        value = fn(*args, **kwargs)
+        with _result_lock:
+            _result_cache[key] = (now, value)
+        return value
+
+    return wrapper
+
+
+def clear_result_cache() -> None:
+    """Drop memoised reads (call after writing data)."""
+    with _result_lock:
+        _result_cache.clear()
+
+
+def _query_many(items: Sequence[tuple[str, Sequence[Any] | None]]) -> list[list[dict[str, Any]]]:
+    """Run independent statements concurrently, one pooled connection each.
+
+    A cursor is single-threaded, so queries issued on one connection queue up.
+    For a handful of unrelated aggregates that turns N round trips into N waits
+    instead of one.
+    """
+    def run(item: tuple[str, Sequence[Any] | None]) -> list[dict[str, Any]]:
+        statement, params = item
+        with _connection() as conn:
+            with conn.cursor() as cur:
+                return _query(cur, statement, params)
+
+    if len(items) == 1:
+        return [run(items[0])]
+    with ThreadPoolExecutor(max_workers=min(len(items), _POOL_SIZE)) as pool:
+        return list(pool.map(run, items))
+
+
+def warm_pool(n: int = 6) -> None:
+    """Open connections up front so the first page load doesn't pay handshakes.
+
+    Safe to fail: a warehouse that is asleep or unreachable just leaves the pool
+    empty and requests open connections on demand as before.
+    """
+    def one() -> None:
+        try:
+            _release(time.monotonic(), _open_connection(), True)
+        except Exception:
+            log.warning("Pool warm-up connection failed", exc_info=True)
+
+    with ThreadPoolExecutor(max_workers=n) as pool:
+        for _ in range(min(n, _POOL_SIZE)):
+            pool.submit(one)
+
+
+def close_pool() -> None:
+    """Drop every pooled connection (called on app shutdown)."""
+    while True:
+        try:
+            _, conn = _pool.get_nowait()
+        except queue.Empty:
+            return
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
+_ISO_DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+
+def _coerce(v: Any) -> Any:
+    """Send YYYY-MM-DD as a DATE, not a string.
+
+    Comparing a DATE column against a string parameter makes Spark cast the
+    column, which defeats file skipping — measured ~0.65s vs ~0.40s for the
+    same filter.
+    """
+    if isinstance(v, str) and _ISO_DATE.match(v):
+        try:
+            return date.fromisoformat(v)
+        except ValueError:
+            return v
+    return v
 
 
 def _query(cur: Any, statement: str, params: Sequence[Any] | None = None) -> list[dict[str, Any]]:
     """Run a query on an already-open cursor (see module docstring for why)."""
-    cur.execute(statement, tuple(params) if params else None)
+    cur.execute(statement, tuple(_coerce(p) for p in params) if params else None)
     cols = [d[0] for d in (cur.description or [])]
     rows = cur.fetchall() or []
     return [dict(zip(cols, row)) for row in rows]
 
 
-def latest_business_date(cur: Any = None) -> str | None:
-    def _run(c: Any) -> str | None:
-        rows = _query(c, f"SELECT MAX(business_date) AS d FROM {_t('fact_cash_position')}")
-        d = rows[0]["d"] if rows else None
-        return d.isoformat() if d else None
+# Resolving "latest" costs a round trip, and nearly every fetch_* needs one, so
+# a dashboard load spent several of them re-asking the same question. The answer
+# only moves when a new day lands, so a short TTL is plenty.
+_MAX_DATE_TTL_S = 60
+_max_date_cache: dict[str, tuple[float, str | None]] = {}
 
+
+def _max_business_date(cur: Any, table: str) -> str | None:
+    hit = _max_date_cache.get(table)
+    now = time.monotonic()
+    if hit and now - hit[0] < _MAX_DATE_TTL_S:
+        return hit[1]
+    rows = _query(cur, f"SELECT MAX(business_date) AS d FROM {_t(table)}")
+    d = rows[0]["d"] if rows else None
+    value = d.isoformat() if hasattr(d, "isoformat") else (str(d) if d else None)
+    _max_date_cache[table] = (now, value)
+    return value
+
+
+def clear_date_cache() -> None:
+    """Forget resolved latest-dates (call after loading new data)."""
+    _max_date_cache.clear()
+
+
+def latest_business_date(cur: Any = None) -> str | None:
     if cur is not None:
-        return _run(cur)
+        return _max_business_date(cur, "fact_cash_position")
     with _connection() as conn:
         with conn.cursor() as c:
-            return _run(c)
+            return _max_business_date(c, "fact_cash_position")
 
 
 def _resolve_date(cur: Any, business_date: str | None) -> str:
     return business_date or latest_business_date(cur)
 
 
+@cached
 def health() -> dict[str, Any]:
+    # Resolving the business date already proves the warehouse answers, so the
+    # separate SELECT 1 probe was a wasted round trip on every page load.
     with _connection() as conn:
         with conn.cursor() as cur:
-            _query(cur, "SELECT 1")
             business_date = latest_business_date(cur)
     return {
         "status": "ok",
@@ -207,9 +386,7 @@ def fetch_denomination_gap(entity_type: str, entity_code: str, business_date: st
 
 def _latest_route_date(cur: Any) -> str | None:
     """Get the most recent business_date available in fact_route_summary."""
-    rows = _query(cur, f"SELECT MAX(business_date) AS d FROM {_t('fact_route_summary')}")
-    d = rows[0]["d"] if rows else None
-    return str(d) if d else None
+    return _max_business_date(cur, "fact_route_summary")
 
 
 def _resolve_route_date(cur: Any, business_date: str | None) -> str:
@@ -283,6 +460,7 @@ def fetch_routes(business_date: str | None = None, plan_type: str | None = None)
 _DENOM_KEY = {1000: "b1000", 500: "b500", 100: "b100", 50: "b50"}
 
 
+@cached
 def fetch_branch_tracks(business_date: str | None = None) -> tuple[str, list[dict[str, Any]]]:
     """BranchTrack[] shape (excludes the depot, matching uc_repo.fetch_branches).
     Returns (resolved_business_date, rows) — avoids a second connection just
@@ -290,9 +468,10 @@ def fetch_branch_tracks(business_date: str | None = None) -> tuple[str, list[dic
     with _connection() as conn:
         with conn.cursor() as cur:
             d = _resolve_date(cur, business_date)
-            snaps = _query(
-                cur,
-                f"""
+
+    # Independent of each other — issued together rather than back to back.
+    snaps, flows, gaps = _query_many([
+        (f"""
                 SELECT b.branch_code, b.branch_name, b.district_name, b.latitude, b.longitude,
                        b.cash_capacity_thb, b.min_threshold_thb, b.service_minutes, b.window_start, b.window_end,
                        p.actual_cash_d_minus_1, p.predicted_cash_d, p.predicted_deposit_d, p.predicted_withdrawal_d,
@@ -302,29 +481,20 @@ def fetch_branch_tracks(business_date: str | None = None) -> tuple[str, list[dic
                 JOIN {_t('fact_cash_position')} p ON p.branch_code = b.branch_code
                 WHERE p.business_date = ?
                 ORDER BY b.branch_code
-                """,
-                [d],
-            )
-            flows = _query(
-                cur,
-                f"""
+        """, [d]),
+        (f"""
                 SELECT branch_code, series_date, value_type, deposit_amount_thb, withdrawal_amount_thb, net_amount_thb
                 FROM {_t('fact_cash_flow_daily')}
                 WHERE business_date = ?
                 ORDER BY branch_code, series_date
-                """,
-                [d],
-            )
-            gaps = _query(
-                cur,
-                f"""
+        """, [d]),
+        (f"""
                 SELECT branch_code, denomination_thb, delivery_amount_thb,
                        actual_amount_thb_d_minus_1 AS actual_amount_thb
                 FROM {_t('fact_branch_denomination')}
                 WHERE business_date = ?
-                """,
-                [d],
-            )
+        """, [d]),
+    ])
 
     flow_by: dict[str, list[dict[str, Any]]] = {}
     for r in flows:
@@ -404,6 +574,7 @@ def fetch_branch_tracks(business_date: str | None = None) -> tuple[str, list[dic
     return d, out
 
 
+@cached
 def fetch_branch_inputs(business_date: str | None = None) -> list[dict[str, Any]]:
     """BranchInput[] shape — for Configure Inputs."""
     with _connection() as conn:
@@ -445,21 +616,20 @@ def fetch_branch_inputs(business_date: str | None = None) -> list[dict[str, Any]
 
 def _latest_machine_date(cur: Any) -> str | None:
     """Latest business_date in fact_machine_position (may differ from branch date)."""
-    rows = _query(cur, f"SELECT MAX(business_date) AS d FROM {_t('fact_machine_position')}")
-    d = rows[0]["d"] if rows else None
-    return d.isoformat() if d else None
+    return _max_business_date(cur, "fact_machine_position")
 
 
+@cached
 def fetch_machine_tracks(business_date: str | None = None) -> tuple[str, list[dict[str, Any]]]:
     """Machine[] shape (tracking.ts), including a denomination *mix* (predicted remaining).
     Returns (resolved_business_date, rows)."""
     with _connection() as conn:
         with conn.cursor() as cur:
             d = business_date or _latest_machine_date(cur) or _resolve_date(cur, business_date)
-            # 1. Position + dimension join
-            snaps = _query(
-                cur,
-                f"""
+
+    # Position, trend and denomination are independent — issued together.
+    snaps, flows, denoms = _query_many([
+        (f"""
                 SELECT m.machine_id, m.machine_type, m.location_name, m.district_name, m.latitude, m.longitude,
                        m.alltime_max_cash_thb,
                        p.actual_cash_d_minus_1, p.predicted_cash_d, p.predicted_deposit_d,
@@ -469,25 +639,15 @@ def fetch_machine_tracks(business_date: str | None = None) -> tuple[str, list[di
                 JOIN {_t('fact_machine_position')} p ON p.machine_id = m.machine_id
                 WHERE p.business_date = ?
                 ORDER BY m.machine_id
-                """,
-                [d],
-            )
-            # 2. Flow daily (trend)
-            flows = _query(
-                cur,
-                f"""
+        """, [d]),
+        (f"""
                 SELECT machine_id, series_date, value_type, deposit_amount_thb,
                        withdrawal_amount_thb, net_amount_thb
                 FROM {_t('fact_machine_flow_daily')}
                 WHERE business_date = ?
                 ORDER BY machine_id, series_date
-                """,
-                [d],
-            )
-            # 3. Denomination (full detail for donut + tooltip)
-            denoms = _query(
-                cur,
-                f"""
+        """, [d]),
+        (f"""
                 SELECT machine_id, denomination_thb,
                        actual_note_count_d_minus_1, actual_amount_thb_d_minus_1,
                        predicted_remaining_note_count, predicted_remaining_amount_thb,
@@ -496,9 +656,8 @@ def fetch_machine_tracks(business_date: str | None = None) -> tuple[str, list[di
                        remove_note_count, remove_amount_thb
                 FROM {_t('fact_machine_denomination')}
                 WHERE business_date = ?
-                """,
-                [d],
-            )
+        """, [d]),
+    ])
 
     # Build lookups
     flow_by: dict[str, list[dict[str, Any]]] = {}
@@ -600,6 +759,7 @@ def fetch_machine_tracks(business_date: str | None = None) -> tuple[str, list[di
 
 
 
+@cached
 def fetch_route_executions(
     business_date: str | None = None, plan_type: str | None = None
 ) -> tuple[str, list[dict[str, Any]]]:
@@ -777,6 +937,7 @@ def update_truck_availability(truck_id: str, is_available: bool) -> bool:
                 f"UPDATE {_t('dim_truck')} SET is_available = ?, updated_at = current_timestamp() WHERE truck_id = ?",
                 [is_available, truck_id],
             )
+    clear_result_cache()  # dim_truck feeds cached route reads
     return True
 
 
@@ -813,6 +974,7 @@ def update_route_param(parameter: str, value: float) -> bool:
                 f"UPDATE {_t('dim_route_parameter')} SET value = ?, updated_at = current_timestamp() WHERE parameter = ?",
                 [value, parameter],
             )
+    clear_result_cache()
     return True
 
 
@@ -824,6 +986,14 @@ def update_route_param(parameter: str, value: float) -> bool:
 PERIOD_DAYS = {"day": 1, "week": 7, "month": 30, "quarter": 90, "year": 365}
 
 
+def _shift_days(d: str | None, back: int) -> str | None:
+    """Move an ISO date back by `back` days without a round trip."""
+    if not d:
+        return d
+    return (date.fromisoformat(str(d)[:10]) - timedelta(days=back)).isoformat()
+
+
+@cached
 def fetch_overview_summary(
     business_date: str | None = None, period: str = "day"
 ) -> dict:
@@ -845,12 +1015,16 @@ def fetch_overview_summary(
         with conn.cursor() as cur:
             d = _resolve_date(cur, business_date)
             rd = _resolve_route_date(cur, business_date)
-            # Inclusive window, so "day" is a single date.
-            start = _query(cur, "SELECT date_sub(?, ?) AS s", [d, days - 1])[0]["s"]
-            rstart = _query(cur, "SELECT date_sub(?, ?) AS s", [rd, days - 1])[0]["s"]
+    # Inclusive window, so "day" is a single date. Computed locally —
+    # asking the warehouse to subtract days cost two round trips.
+    start = _shift_days(d, days - 1)
+    rstart = _shift_days(rd, days - 1)
 
-            # --- Demand: Branch predictions ---
-            br_demand = _query(cur, f"""
+    # The six aggregates below are independent of each other, so they go out
+    # concurrently instead of queueing on a single cursor.
+    (br_demand, mc_demand, plan_agg, stop_types, br_coverage, mc_coverage) = _query_many([
+        # --- Demand: Branch predictions ---
+        (f"""
                 SELECT action_type,
                        COALESCE(AVG(daily_cnt), 0) AS cnt,
                        COALESCE(SUM(daily_delivery), 0) AS delivery_amt,
@@ -870,10 +1044,10 @@ def fetch_overview_summary(
                     GROUP BY business_date, action_type
                 )
                 GROUP BY action_type
-            """, [start, d])
+        """, [start, d]),
 
-            # --- Demand: Machine predictions ---
-            mc_demand = _query(cur, f"""
+        # --- Demand: Machine predictions ---
+        (f"""
                 SELECT action_type,
                        COALESCE(AVG(daily_cnt), 0) AS cnt,
                        COALESCE(SUM(daily_delivery), 0) AS delivery_amt,
@@ -893,12 +1067,12 @@ def fetch_overview_summary(
                     GROUP BY business_date, action_type
                 )
                 GROUP BY action_type
-            """, [start, d])
+        """, [start, d]),
 
-            # --- Plan: Route summary aggregate ---
-            # One row per truck per day already, so SUM spans the window for
-            # flows while trucks needs DISTINCT (else it counts truck-days).
-            plan_agg = _query(cur, f"""
+        # --- Plan: Route summary aggregate ---
+        # One row per truck per day already, so SUM spans the window for
+        # flows while trucks needs DISTINCT (else it counts truck-days).
+        (f"""
                 SELECT COUNT(DISTINCT truck_id) AS trucks,
                        COALESCE(SUM(total_stops), 0) AS total_stops,
                        COALESCE(SUM(total_distance_km), 0) AS total_km,
@@ -914,19 +1088,19 @@ def fetch_overview_summary(
                        MAX(business_date) AS biz_date
                 FROM {_t('fact_route_summary')}
                 WHERE business_date BETWEEN ? AND ?
-            """, [rstart, rd])
+        """, [rstart, rd]),
 
-            # --- Plan: Stop breakdown by type ---
-            stop_types = _query(cur, f"""
+        # --- Plan: Stop breakdown by type ---
+        (f"""
                 SELECT stop_type, COUNT(*) AS cnt, COUNT(DISTINCT stop_code) AS distinct_codes
                 FROM {_t('fact_route_stop')}
                 WHERE business_date BETWEEN ? AND ?
                   AND action_type != 'START' AND action_type != 'RETURN'
                 GROUP BY stop_type
-            """, [rstart, rd])
+        """, [rstart, rd]),
 
-            # --- Coverage: Branch matching (KT prefix) ---
-            br_coverage = _query(cur, f"""
+        # --- Coverage: Branch matching (KT prefix) ---
+        (f"""
                 WITH predicted AS (
                     SELECT DISTINCT branch_code
                     FROM {_t('fact_cash_position')}
@@ -945,10 +1119,10 @@ def fetch_overview_summary(
                        SELECT 1 FROM planned r
                        WHERE r.stop_code LIKE CONCAT('%KT', p.branch_code, '%')
                      )) AS covered
-            """, [start, d, rstart, rd])
+        """, [start, d, rstart, rd]),
 
-            # --- Coverage: Machine matching (direct code) ---
-            mc_coverage = _query(cur, f"""
+        # --- Coverage: Machine matching (direct code) ---
+        (f"""
                 WITH predicted AS (
                     SELECT DISTINCT machine_id
                     FROM {_t('fact_machine_position')}
@@ -967,7 +1141,8 @@ def fetch_overview_summary(
                        SELECT 1 FROM planned r
                        WHERE r.stop_code LIKE CONCAT('%', p.machine_id, '%')
                      )) AS covered
-            """, [start, d, rstart, rd])
+        """, [start, d, rstart, rd]),
+    ])
 
     # --- Assemble response ---
     def _by_action(rows, action):

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 import os
+import threading
 from typing import Any
 
 from fastapi import FastAPI, Query
@@ -23,6 +24,37 @@ log = logging.getLogger("ktb-app")
 
 app = FastAPI(title="KTB Cash Route Optimization")
 app.include_router(router_v2)
+
+
+@app.on_event("startup")
+def _warm_uc_pool() -> None:
+    """Open warehouse connections in the background so the first page load
+    doesn't wait on handshakes. Runs off-thread: startup must not block, and a
+    sleeping warehouse would otherwise stall boot."""
+    if not _uc_enabled():
+        return
+
+    def run() -> None:
+        try:
+            from server.uc_repo_v2 import warm_pool
+
+            warm_pool()
+            log.info("UC connection pool warmed")
+        except Exception:
+            log.warning("UC pool warm-up skipped", exc_info=True)
+
+    threading.Thread(target=run, name="uc-pool-warmup", daemon=True).start()
+
+
+@app.on_event("shutdown")
+def _close_uc_pool() -> None:
+    """Close pooled warehouse connections instead of leaving them to the GC."""
+    try:
+        from server.uc_repo_v2 import close_pool
+
+        close_pool()
+    except Exception:
+        log.exception("Failed closing the UC connection pool")
 
 
 def _uc_enabled() -> bool:
