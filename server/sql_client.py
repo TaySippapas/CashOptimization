@@ -7,12 +7,26 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Any, Iterator, Sequence
 
+from urllib.parse import urlparse
+
 from databricks import sql
 from databricks.sdk.core import Config
 
 from server.settings import AppSettings, get_settings
 
 log = logging.getLogger(__name__)
+
+
+def bare_hostname(raw: str) -> str:
+    """Strip scheme and path from a workspace URL.
+
+    sql.connect wants a bare host, but Config().host carries whatever was
+    passed to `databricks auth login` — often pasted from the browser with a
+    path still attached (e.g. ".../browse"), which turns every request into a
+    404 with an empty error message.
+    """
+    parsed = urlparse(raw if "//" in raw else f"https://{raw}")
+    return parsed.netloc or parsed.path.split("/", 1)[0]
 
 
 @contextmanager
@@ -23,7 +37,7 @@ def sql_connection(settings: AppSettings | None = None) -> Iterator[Any]:
 
     cfg = Config()
     conn = sql.connect(
-        server_hostname=cfg.host,
+        server_hostname=bare_hostname(cfg.host),
         http_path=f"/sql/1.0/warehouses/{settings.warehouse_id}",
         credentials_provider=lambda: cfg.authenticate,
     )

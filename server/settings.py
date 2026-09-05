@@ -43,7 +43,8 @@ def _truthy(v: str | bool | None, default: bool = False) -> bool:
 def get_settings() -> AppSettings:
     raw: dict = {}
     if CONFIG_PATH.is_file():
-        with CONFIG_PATH.open() as f:
+        # Explicit UTF-8: the file has Thai comments and Windows defaults to cp1252.
+        with CONFIG_PATH.open(encoding="utf-8") as f:
             raw = yaml.safe_load(f) or {}
 
     return AppSettings(

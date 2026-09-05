@@ -10,7 +10,7 @@ export default function BranchTable({ branches, loading }: { branches: Branch[];
         <h2>Branch Cash Forecast (ML model output)</h2>
         <span className="hint">{rows.length} branches · predicted for plan date</span>
       </div>
-      <div className="panel-body" style={{ padding: 0, maxHeight: 320, overflowY: "auto" }}>
+      <div className="panel-body" style={{ padding: 0, maxHeight: "clamp(220px, 34vh, 360px)", overflowY: "auto" }}>
         <table className="branch-table">
           <thead>
             <tr>

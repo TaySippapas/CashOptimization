@@ -1,4 +1,4 @@
-import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Popup, ZoomControl } from "react-leaflet";
 import L from "leaflet";
 import type { RouteExecution } from "@/types";
 import { thb } from "@/utils/format";
@@ -21,7 +21,9 @@ export default function RoutePathMap({ exec }: { exec: RouteExecution }) {
   const points: [number, number][] = exec.path;
   return (
     <div className="health-map">
-      <MapContainer center={[exec.depotLat, exec.depotLng]} zoom={11} scrollWheelZoom>
+      {/* zoom sits top-right: the stop legend occupies the top-left corner */}
+      <MapContainer center={[exec.depotLat, exec.depotLng]} zoom={11} scrollWheelZoom zoomControl={false}>
+        <ZoomControl position="topright" />
         <FitBounds points={points} padding={50} />
         <TileLayer key={tileUrl} attribution="Tiles &copy; Esri &mdash; Esri, DeLorme, NAVTEQ" url={tileUrl} />
         <RoadPolyline path={exec.path} color={exec.color} />

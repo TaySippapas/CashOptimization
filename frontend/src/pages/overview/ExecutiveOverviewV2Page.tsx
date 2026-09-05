@@ -18,6 +18,8 @@ import KpiCard, { SkeletonKpiCard } from "@/components/KpiCard";
 import StatusDot from "@/components/StatusDot";
 import Pill from "@/components/Pill";
 import Skeleton from "@/components/Skeleton";
+import DateFilter from "@/components/DateFilter";
+import PeriodFilter, { type Period } from "@/components/PeriodFilter";
 import { COLOR } from "@/utils/colors";
 
 const API = "/api/v2";
@@ -42,6 +44,10 @@ interface OverviewData {
   };
   cost: { cot: number; cof: number | null; citTotal: number };
   cashUnderManagement: number;
+  period: Period;
+  periodDays: number;
+  periodStart: string;
+  periodEnd: string;
 }
 
 const STATUS_COLOR: Record<string, string> = {
@@ -58,29 +64,47 @@ function fmtHours(min: number): string {
 }
 
 export default function ExecutiveOverviewV2Page() {
-  const { execs, routeSummary, machinesOverride, branchTracksOverride, dataLoading } = useAppData();
+  const { execs, routeSummary, machinesOverride, branchTracksOverride, dataLoading, selectedDate } = useAppData();
   const [ov, setOv] = useState<OverviewData | null>(null);
   const [ovLoading, setOvLoading] = useState(true);
   const [ovError, setOvError] = useState<string | null>(null);
   const [mapLayers, setMapLayers] = useState({ machines: true, branches: true });
+  const [period, setPeriod] = useState<Period>("day");
 
   useEffect(() => {
+    let cancelled = false;
+    setOvLoading(true);
+    setOvError(null);
     (async () => {
       try {
-        const r = await fetch(`${API}/overview-summary`).then((r) => r.json());
+        const params = new URLSearchParams({ period });
+        if (selectedDate) params.set("date", selectedDate);
+        const res = await fetch(`${API}/overview-summary?${params}`);
+        if (!res.ok) throw new Error(`Backend returned ${res.status}`);
+        const r = await res.json();
+        if (cancelled) return;
         if (r.error) setOvError(r.error);
         else setOv(r as OverviewData);
       } catch (e: any) {
-        setOvError(e?.message ?? "Network error");
+        if (!cancelled) setOvError(e?.message ?? "Network error");
       } finally {
-        setOvLoading(false);
+        if (!cancelled) setOvLoading(false);
       }
     })();
-  }, []);
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedDate, period]);
 
   const loading = dataLoading || ovLoading;
   const machines = useMemo(() => machinesOverride ?? [], [machinesOverride]);
   const branches = useMemo(() => branchTracksOverride ?? [], [branchTracksOverride]);
+
+  // Over a multi-day window some tiles are per-day averages and others are
+  // period totals; without saying which, the numbers can't be read correctly.
+  const multiDay = period !== "day";
+  const avgTag = multiDay ? "avg/day" : undefined;
+  const totalTag = multiDay ? `total · ${period === "quarter" ? "3M" : period === "week" ? "1W" : period === "month" ? "1M" : "1Y"}` : undefined;
 
   // Route status donut
   const donut = useMemo(() => [
@@ -185,6 +209,13 @@ export default function ExecutiveOverviewV2Page() {
           )}
         </div>
         <div className="overview-actions">
+          <PeriodFilter value={period} onChange={setPeriod} disabled={ovLoading} />
+          {ov && period !== "day" && (
+            <span className="period-range">
+              {ov.periodStart} → {ov.periodEnd}
+            </span>
+          )}
+          <DateFilter />
           <span className="eo-refresh">Source: Unity Catalog</span>
         </div>
       </div>
@@ -206,6 +237,7 @@ export default function ExecutiveOverviewV2Page() {
               icon={<Banknote size={18} color={COLOR.accent} />}
               label="Total Cash Under Management"
               value={ov ? thbB(ov.cashUnderManagement) : "—"}
+              qualifier={avgTag}
               sub={ov ? `${ov.demand.branch.total} branches · ${ov.demand.machine.total} machines` : undefined}
             />
             <KpiCard
@@ -219,12 +251,14 @@ export default function ExecutiveOverviewV2Page() {
               icon={<Truck size={18} color={COLOR.accent} />}
               label="CIT Cost"
               value={ov ? thb(ov.cost.citTotal) : "—"}
+              qualifier={totalTag}
               sub={ov ? `CoT ${thb(ov.cost.cot)} · CoF ${ov.cost.cof != null ? thb(ov.cost.cof) : "—"}` : undefined}
             />
             <KpiCard
               icon={<Wrench size={18} color={COLOR.red} />}
               label="Service Points (Demand)"
               value={ov ? `${servicePoints} points` : "—"}
+              qualifier={totalTag}
               sub={ov ? `${ov.demand.branch.needService} Br · ${ov.demand.machine.needService} Machine` : undefined}
               tone="danger"
             />
@@ -232,12 +266,14 @@ export default function ExecutiveOverviewV2Page() {
               icon={<CheckCircle2 size={18} color={COLOR.green} />}
               label="Route SLA"
               value={ov ? `${ov.plan.avgSlaPct}%` : "—"}
+              qualifier={avgTag}
               tone="green"
             />
             <KpiCard
               icon={<Gauge size={18} color={COLOR.accent} />}
               label="Vehicle Utilization"
               value={ov ? `${ov.plan.avgUtilizationPct}%` : "—"}
+              qualifier={avgTag}
             />
           </>
         )}
@@ -335,7 +371,7 @@ export default function ExecutiveOverviewV2Page() {
             <h2>Machine Attention</h2>
             <span className="hint">{machineAttention.length} need service</span>
           </div>
-          <div className="panel-body" style={{ padding: 0, overflow: "auto", maxHeight: 400 }}>
+          <div className="panel-body" style={{ padding: 0, overflow: "auto", maxHeight: "clamp(240px, 42vh, 440px)" }}>
             <table className="branch-table eo-risk-table" style={{ fontSize: 12 }}>
               <thead><tr><th>Machine</th><th>Location</th><th className="num">Actual Cash</th><th className="num">Predicted</th><th>Action</th></tr></thead>
               <tbody>

@@ -4,6 +4,8 @@ import { summarizeMachines, HEALTH_COLOR, machineActionLabel } from "@/domain/tr
 import type { Machine, DayFlow } from "@/types";
 import { thb } from "@/utils/format";
 import HealthMap, { type MapPoint } from "@/components/maps/HealthMap";
+import ResizableSplit from "@/components/ResizableSplit";
+import DateFilter from "@/components/DateFilter";
 import TrendChart from "@/components/charts/TrendChart";
 import { DenominationDonut } from "@/components/charts/DenominationChart";
 import { useAppData } from "@/hooks/useAppData";
@@ -146,7 +148,7 @@ export default function MachineTrackingPage() {
             </option>
           ))}
         </select>
-        <span className="pt-date">Date: {machineBusinessDate || config.params.planDate}</span>
+        <DateFilter />
       </div>
 
       {/* KPI cards — 6 */}
@@ -193,7 +195,9 @@ export default function MachineTrackingPage() {
       </div>
 
       {/* Row 1: Map + Table */}
-      <div className="track-split">
+      <ResizableSplit
+        id="machines"
+        left={
         <div className="panel" style={dataLoading ? { display: "flex", flexDirection: "column" } : undefined}>
           <div className="panel-head">
             <h2>Machine Health Map</h2>
@@ -205,13 +209,14 @@ export default function MachineTrackingPage() {
             <HealthMap points={points} showEmergencyLegend />
           )}
         </div>
-
+        }
+        right={
         <div className="panel">
           <div className="panel-head">
             <h2>Machine Summary</h2>
             <span className="hint">actual cash · predicted flows · service plan</span>
           </div>
-          <div className="panel-body" style={{ padding: 0, maxHeight: 430, overflowY: "auto" }}>
+          <div className="panel-body" style={{ padding: 0, maxHeight: "clamp(260px, 46vh, 470px)", overflowY: "auto" }}>
             <table className="branch-table">
               <thead>
                 <tr>
@@ -279,7 +284,8 @@ export default function MachineTrackingPage() {
             </table>
           </div>
         </div>
-      </div>
+        }
+      />
 
       {/* Row 2: Trend + Denomination */}
       <div className="track-split">

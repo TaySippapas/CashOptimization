@@ -14,6 +14,12 @@ export interface AppData {
   branchTracksOverride?: BranchTrack[];
   dataSourceLabel: string;
   dataLoading: boolean; // check if the data is still loading from the backend
+  /** "" means latest — the backend resolves MAX(business_date). */
+  selectedDate: string;
+  setSelectedDate: Dispatch<SetStateAction<string>>;
+  /** The date the backend actually served, whether picked or resolved. */
+  resolvedDate: string;
+  dateRange?: { minDate?: string; maxDate?: string };
 }
 
 export function useAppData(): AppData {

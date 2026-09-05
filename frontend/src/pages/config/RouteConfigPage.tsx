@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Settings, Truck, Clock, DollarSign, Gauge, UtensilsCrossed, Save, Loader2 } from "lucide-react";
 import Skeleton from "@/components/Skeleton";
 import { COLOR } from "@/utils/colors";
@@ -37,13 +37,20 @@ export default function RouteConfigPage() {
   const [params, setParams] = useState<RouteParam[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [dirty, setDirty] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   // Track pending changes
   const [truckChanges, setTruckChanges] = useState<Record<string, boolean>>({});
   const [paramChanges, setParamChanges] = useState<Record<string, number>>({});
+
+  // Values as loaded from the server — an edit back to these is not a change.
+  const savedTrucks = useRef<Record<string, boolean>>({});
+  const savedParams = useRef<Record<string, number>>({});
+
+  // Raw text while a field is being typed in. Without this, coercing every
+  // keystroke to a number makes intermediate input ("0.", "-", "") unwritable.
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
 
   /* ── Load data ── */
   useEffect(() => {
@@ -55,8 +62,12 @@ export default function RouteConfigPage() {
         ]);
         if (fRes.error) setLoadError((prev) => (prev ? prev + "; " : "") + `Fleet: ${fRes.error}`);
         if (pRes.error) setLoadError((prev) => (prev ? prev + "; " : "") + `Params: ${pRes.error}`);
-        setTrucks(fRes.trucks ?? []);
-        setParams(pRes.params ?? []);
+        const loadedTrucks: FleetTruck[] = fRes.trucks ?? [];
+        const loadedParams: RouteParam[] = pRes.params ?? [];
+        setTrucks(loadedTrucks);
+        setParams(loadedParams);
+        savedTrucks.current = Object.fromEntries(loadedTrucks.map((t) => [t.truckId, t.isAvailable]));
+        savedParams.current = Object.fromEntries(loadedParams.map((p) => [p.parameter, p.value]));
       } catch (e: any) {
         console.error("Failed to load config", e);
         setLoadError(`Network error: ${e?.message ?? e}`);
@@ -68,15 +79,20 @@ export default function RouteConfigPage() {
 
   /* ── Toggle truck ── */
   const toggleTruck = useCallback((truckId: string) => {
+    const current = trucks.find((t) => t.truckId === truckId);
+    if (!current) return;
+    const newVal = !current.isAvailable;
+
     setTrucks((prev) => prev.map((t) =>
-      t.truckId === truckId ? { ...t, isAvailable: !t.isAvailable } : t
+      t.truckId === truckId ? { ...t, isAvailable: newVal } : t
     ));
     setTruckChanges((prev) => {
-      const truck = trucks.find((t) => t.truckId === truckId);
-      const newVal = truck ? !truck.isAvailable : true;
-      return { ...prev, [truckId]: newVal };
+      const next = { ...prev };
+      // Toggling back to the saved value cancels the pending change.
+      if (newVal === savedTrucks.current[truckId]) delete next[truckId];
+      else next[truckId] = newVal;
+      return next;
     });
-    setDirty(true);
   }, [trucks]);
 
   /* ── Edit param ── */
@@ -84,8 +100,12 @@ export default function RouteConfigPage() {
     setParams((prev) => prev.map((p) =>
       p.parameter === parameter ? { ...p, value } : p
     ));
-    setParamChanges((prev) => ({ ...prev, [parameter]: value }));
-    setDirty(true);
+    setParamChanges((prev) => {
+      const next = { ...prev };
+      if (value === savedParams.current[parameter]) delete next[parameter];
+      else next[parameter] = value;
+      return next;
+    });
   }, []);
 
   /* ── Save all changes ── */
@@ -112,10 +132,13 @@ export default function RouteConfigPage() {
         );
       }
       await Promise.all(promises);
+      // What we just wrote is the new server state, so it becomes the baseline.
+      savedTrucks.current = { ...savedTrucks.current, ...truckChanges };
+      savedParams.current = { ...savedParams.current, ...paramChanges };
+      const saved = Object.keys(truckChanges).length + Object.keys(paramChanges).length;
       setTruckChanges({});
       setParamChanges({});
-      setDirty(false);
-      setToast(`Saved ${Object.keys(truckChanges).length + Object.keys(paramChanges).length} changes`);
+      setToast(`Saved ${saved} changes`);
       setTimeout(() => setToast(null), 3000);
     } catch (e) {
       setToast("Save failed — please retry");
@@ -133,6 +156,7 @@ export default function RouteConfigPage() {
 
   const availableCount = trucks.filter((t) => t.isAvailable).length;
   const changesCount = Object.keys(truckChanges).length + Object.keys(paramChanges).length;
+  const dirty = changesCount > 0;
 
   return (
     <div className="track-page">
@@ -285,14 +309,24 @@ export default function RouteConfigPage() {
                             <div style={{ fontSize: 9, color: "var(--muted)" }}>{p.parameter}</div>
                           </div>
                           <input
-                            type="number"
-                            value={p.value}
-                            onChange={(e) => editParam(p.parameter, parseFloat(e.target.value) || 0)}
-                            step="any"
+                            type="text"
+                            inputMode="decimal"
+                            value={drafts[p.parameter] ?? String(p.value)}
+                            onChange={(e) => {
+                              const raw = e.target.value;
+                              setDrafts((d) => ({ ...d, [p.parameter]: raw }));
+                              const n = parseFloat(raw);
+                              if (Number.isFinite(n)) editParam(p.parameter, n);
+                            }}
+                            onBlur={() => setDrafts((d) => {
+                              const next = { ...d };
+                              delete next[p.parameter];
+                              return next;
+                            })}
                             style={{
                               width: 90, padding: "4px 8px", borderRadius: 6,
-                              border: `1px solid ${p.parameter in paramChanges ? COLOR.amber : "rgba(255,255,255,0.12)"}`,
-                              background: "rgba(255,255,255,0.06)", color: "#1e293b",
+                              border: `1px solid ${p.parameter in paramChanges ? COLOR.amber : "var(--border)"}`,
+                              background: "var(--inset)", color: "var(--text)",
                               fontSize: 12, textAlign: "right", fontWeight: 600,
                             }}
                           />

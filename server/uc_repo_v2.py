@@ -21,6 +21,8 @@ from typing import Any, Iterator, Sequence
 from databricks import sql
 from databricks.sdk.core import Config
 
+from server.settings import get_settings
+from server.sql_client import bare_hostname
 from server.uc_repo import (
     _bool,
     _date_str,
@@ -36,9 +38,12 @@ from server.uc_repo import (
 
 log = logging.getLogger(__name__)
 
-CATALOG = os.getenv("V2_CATALOG", "mdp_dev_dit")
-SCHEMA = os.getenv("V2_SCHEMA", "default")
-WAREHOUSE_ID = os.getenv("V2_WAREHOUSE_ID", "ef9767b2a2846fa7")
+# V2_* env vars win (Databricks Apps sets them); otherwise fall back to
+# config.yaml rather than a second hardcoded copy that drifts out of sync.
+_settings = get_settings()
+CATALOG = os.getenv("V2_CATALOG") or _settings.catalog
+SCHEMA = os.getenv("V2_SCHEMA") or _settings.schema
+WAREHOUSE_ID = os.getenv("V2_WAREHOUSE_ID") or _settings.warehouse_id
 
 
 def _t(name: str) -> str:
@@ -59,7 +64,7 @@ def _config() -> Config:
 def _connection() -> Iterator[Any]:
     cfg = _config()
     conn = sql.connect(
-        server_hostname=cfg.host,
+        server_hostname=bare_hostname(cfg.host),
         http_path=f"/sql/1.0/warehouses/{WAREHOUSE_ID}",
         credentials_provider=lambda: cfg.authenticate,
     )
@@ -107,6 +112,24 @@ def health() -> dict[str, Any]:
         "warehouseId": WAREHOUSE_ID,
         "businessDate": business_date,
         "businessDateMode": "auto",
+    }
+
+
+def fetch_date_range() -> dict[str, Any]:
+    """Earliest and latest business_date available, for bounding the date picker."""
+    with _connection() as conn:
+        with conn.cursor() as cur:
+            rows = _query(
+                cur,
+                f"""
+                SELECT MIN(business_date) AS min_d, MAX(business_date) AS max_d
+                FROM {_t('fact_cash_position')}
+                """,
+            )
+    r = rows[0] if rows else {}
+    return {
+        "minDate": _date_str(r.get("min_d")) or None,
+        "maxDate": _date_str(r.get("max_d")) or None,
     }
 
 
@@ -797,39 +820,86 @@ def update_route_param(parameter: str, value: float) -> bool:
 #  Overview Summary — Demand vs Plan
 # ---------------------------------------------------------------------------
 
-def fetch_overview_summary() -> dict:
-    """Cross-domain overview: demand (prediction) vs plan (route), coverage, CIT cost."""
+# Days covered by each period, counting back from the selected date.
+PERIOD_DAYS = {"day": 1, "week": 7, "month": 30, "quarter": 90, "year": 365}
+
+
+def fetch_overview_summary(
+    business_date: str | None = None, period: str = "day"
+) -> dict:
+    """Cross-domain overview: demand (prediction) vs plan (route), coverage, CIT cost.
+
+    Covers `period` days ending at the selected date. Metrics are rolled up per
+    day first, then combined with the function that suits the measure:
+
+      * stocks   (cash held, entity counts) -> AVG per day. Summing these
+        across days multiplies the balance by the number of days.
+      * flows    (cash moved, cost, distance, stops) -> SUM across the period.
+      * rates    (utilisation, SLA) -> AVG.
+
+    Before this took a date at all, every aggregate ran over the whole table,
+    so "Total Cash Under Management" grew with each day of history loaded.
+    """
+    days = PERIOD_DAYS.get(period, 1)
     with _connection() as conn:
         with conn.cursor() as cur:
+            d = _resolve_date(cur, business_date)
+            rd = _resolve_route_date(cur, business_date)
+            # Inclusive window, so "day" is a single date.
+            start = _query(cur, "SELECT date_sub(?, ?) AS s", [d, days - 1])[0]["s"]
+            rstart = _query(cur, "SELECT date_sub(?, ?) AS s", [rd, days - 1])[0]["s"]
+
             # --- Demand: Branch predictions ---
             br_demand = _query(cur, f"""
                 SELECT action_type,
-                       COUNT(*) AS cnt,
-                       COALESCE(SUM(delivery_amount_thb), 0) AS delivery_amt,
-                       COALESCE(SUM(actual_cash_d_minus_1), 0) AS total_actual,
-                       COALESCE(SUM(predicted_cash_d), 0) AS total_predicted,
-                       COALESCE(SUM(cost_of_fund_thb), 0) AS total_cof,
-                       MAX(business_date) AS biz_date
-                FROM {_t('fact_cash_position')}
+                       COALESCE(AVG(daily_cnt), 0) AS cnt,
+                       COALESCE(SUM(daily_delivery), 0) AS delivery_amt,
+                       COALESCE(AVG(daily_actual), 0) AS total_actual,
+                       COALESCE(AVG(daily_predicted), 0) AS total_predicted,
+                       COALESCE(SUM(daily_cof), 0) AS total_cof,
+                       MAX(biz_date) AS biz_date
+                FROM (
+                    SELECT business_date AS biz_date, action_type,
+                           COUNT(*) AS daily_cnt,
+                           SUM(delivery_amount_thb) AS daily_delivery,
+                           SUM(actual_cash_d_minus_1) AS daily_actual,
+                           SUM(predicted_cash_d) AS daily_predicted,
+                           SUM(cost_of_fund_thb) AS daily_cof
+                    FROM {_t('fact_cash_position')}
+                    WHERE business_date BETWEEN ? AND ?
+                    GROUP BY business_date, action_type
+                )
                 GROUP BY action_type
-            """)
+            """, [start, d])
 
             # --- Demand: Machine predictions ---
             mc_demand = _query(cur, f"""
                 SELECT action_type,
-                       COUNT(*) AS cnt,
-                       COALESCE(SUM(delivery_amount_thb), 0) AS delivery_amt,
-                       COALESCE(SUM(actual_cash_d_minus_1), 0) AS total_actual,
-                       COALESCE(SUM(predicted_cash_d), 0) AS total_predicted,
-                       COALESCE(SUM(cost_of_fund_thb), 0) AS total_cof,
-                       MAX(business_date) AS biz_date
-                FROM {_t('fact_machine_position')}
+                       COALESCE(AVG(daily_cnt), 0) AS cnt,
+                       COALESCE(SUM(daily_delivery), 0) AS delivery_amt,
+                       COALESCE(AVG(daily_actual), 0) AS total_actual,
+                       COALESCE(AVG(daily_predicted), 0) AS total_predicted,
+                       COALESCE(SUM(daily_cof), 0) AS total_cof,
+                       MAX(biz_date) AS biz_date
+                FROM (
+                    SELECT business_date AS biz_date, action_type,
+                           COUNT(*) AS daily_cnt,
+                           SUM(delivery_amount_thb) AS daily_delivery,
+                           SUM(actual_cash_d_minus_1) AS daily_actual,
+                           SUM(predicted_cash_d) AS daily_predicted,
+                           SUM(cost_of_fund_thb) AS daily_cof
+                    FROM {_t('fact_machine_position')}
+                    WHERE business_date BETWEEN ? AND ?
+                    GROUP BY business_date, action_type
+                )
                 GROUP BY action_type
-            """)
+            """, [start, d])
 
             # --- Plan: Route summary aggregate ---
+            # One row per truck per day already, so SUM spans the window for
+            # flows while trucks needs DISTINCT (else it counts truck-days).
             plan_agg = _query(cur, f"""
-                SELECT COUNT(*) AS trucks,
+                SELECT COUNT(DISTINCT truck_id) AS trucks,
                        COALESCE(SUM(total_stops), 0) AS total_stops,
                        COALESCE(SUM(total_distance_km), 0) AS total_km,
                        COALESCE(SUM(total_duration_minutes), 0) AS total_minutes,
@@ -843,27 +913,29 @@ def fetch_overview_summary() -> dict:
                        COALESCE(AVG(sla_achievement_pct), 0) AS avg_sla,
                        MAX(business_date) AS biz_date
                 FROM {_t('fact_route_summary')}
-            """)
+                WHERE business_date BETWEEN ? AND ?
+            """, [rstart, rd])
 
             # --- Plan: Stop breakdown by type ---
             stop_types = _query(cur, f"""
                 SELECT stop_type, COUNT(*) AS cnt, COUNT(DISTINCT stop_code) AS distinct_codes
                 FROM {_t('fact_route_stop')}
-                WHERE action_type != 'START' AND action_type != 'RETURN'
+                WHERE business_date BETWEEN ? AND ?
+                  AND action_type != 'START' AND action_type != 'RETURN'
                 GROUP BY stop_type
-            """)
+            """, [rstart, rd])
 
             # --- Coverage: Branch matching (KT prefix) ---
             br_coverage = _query(cur, f"""
                 WITH predicted AS (
-                    SELECT branch_code
+                    SELECT DISTINCT branch_code
                     FROM {_t('fact_cash_position')}
-                    WHERE action_type = 'DELIVERY'
+                    WHERE action_type = 'DELIVERY' AND business_date BETWEEN ? AND ?
                 ),
                 planned AS (
                     SELECT DISTINCT stop_code
                     FROM {_t('fact_route_stop')}
-                    WHERE stop_type = 'Branch'
+                    WHERE stop_type = 'Branch' AND business_date BETWEEN ? AND ?
                 )
                 SELECT
                     (SELECT COUNT(*) FROM predicted) AS demand,
@@ -873,19 +945,19 @@ def fetch_overview_summary() -> dict:
                        SELECT 1 FROM planned r
                        WHERE r.stop_code LIKE CONCAT('%KT', p.branch_code, '%')
                      )) AS covered
-            """)
+            """, [start, d, rstart, rd])
 
             # --- Coverage: Machine matching (direct code) ---
             mc_coverage = _query(cur, f"""
                 WITH predicted AS (
-                    SELECT machine_id
+                    SELECT DISTINCT machine_id
                     FROM {_t('fact_machine_position')}
-                    WHERE action_type != 'No Action'
+                    WHERE action_type != 'No Action' AND business_date BETWEEN ? AND ?
                 ),
                 planned AS (
                     SELECT DISTINCT stop_code
                     FROM {_t('fact_route_stop')}
-                    WHERE stop_type IN ('ATM', 'RCM', '3IN1')
+                    WHERE stop_type IN ('ATM', 'RCM', '3IN1') AND business_date BETWEEN ? AND ?
                 )
                 SELECT
                     (SELECT COUNT(*) FROM predicted) AS demand,
@@ -895,7 +967,7 @@ def fetch_overview_summary() -> dict:
                        SELECT 1 FROM planned r
                        WHERE r.stop_code LIKE CONCAT('%', p.machine_id, '%')
                      )) AS covered
-            """)
+            """, [start, d, rstart, rd])
 
     # --- Assemble response ---
     def _by_action(rows, action):
@@ -979,4 +1051,9 @@ def fetch_overview_summary() -> dict:
             "citTotal": total_cot + total_cof,
         },
         "cashUnderManagement": total_actual_cash,
+        # What the figures actually cover, so the UI can label them honestly.
+        "period": period,
+        "periodDays": days,
+        "periodStart": _date_str(start),
+        "periodEnd": _date_str(d),
     }

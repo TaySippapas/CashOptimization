@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Polyline, useMap } from "react-leaflet";
 import L from "leaflet";
 import { fetchRoadGeometry, getCachedGeometry } from "@/api/osrm";
@@ -57,13 +57,65 @@ export function FitBounds({
 }) {
   const map = useMap();
   const key = points.map((p) => p.join(",")).join(";");
-  useEffect(() => {
-    if (points.length === 1) {
-      map.setView(points[0], 12);
-    } else if (points.length > 1) {
-      map.fitBounds(points, { padding: [padding, padding] });
+  const ptsRef = useRef(points);
+  ptsRef.current = points;
+
+  // Auto-fitting stops once the user pans/zooms, so resizing never yanks them
+  // away from an area they deliberately navigated to.
+  const autoFit = useRef(true);
+  const programmatic = useRef(false);
+
+  const fit = useCallback(() => {
+    const pts = ptsRef.current;
+    if (!pts.length) return;
+    programmatic.current = true;
+    if (pts.length === 1) {
+      map.setView(pts[0], 12, { animate: false });
+    } else {
+      map.fitBounds(pts, { padding: [padding, padding], animate: false });
     }
+    programmatic.current = false;
+  }, [map, padding]);
+
+  useEffect(() => {
+    autoFit.current = true; // new data re-arms auto-fit
+    fit();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
+
+  useEffect(() => {
+    const onUserMove = () => {
+      if (!programmatic.current) autoFit.current = false;
+    };
+    map.on("movestart", onUserMove);
+    map.on("zoomstart", onUserMove);
+    return () => {
+      map.off("movestart", onUserMove);
+      map.off("zoomstart", onUserMove);
+    };
+  }, [map]);
+
+  // Leaflet caches its container size, so a resized pane paints blank strips
+  // where it still believes there is no map. invalidateSize re-measures it.
+  useEffect(() => {
+    const el = map.getContainer();
+    let raf: number | null = null;
+    const ro = new ResizeObserver(() => {
+      if (raf != null) return; // coalesce the burst of events during a drag
+      raf = requestAnimationFrame(() => {
+        raf = null;
+        programmatic.current = true;
+        map.invalidateSize({ animate: false });
+        programmatic.current = false;
+        if (autoFit.current) fit();
+      });
+    });
+    ro.observe(el);
+    return () => {
+      if (raf != null) cancelAnimationFrame(raf);
+      ro.disconnect();
+    };
+  }, [map, fit]);
+
   return null;
 }

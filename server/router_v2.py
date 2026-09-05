@@ -112,6 +112,15 @@ def get_health():
         raise HTTPException(status_code=503, detail=str(e))
 
 
+@router.get("/date-range")
+def get_date_range():
+    try:
+        return {"source": "unity_catalog", **repo.fetch_date_range()}
+    except Exception as e:
+        log.exception("v2 /date-range failed")
+        return {"source": "error", "error": str(e), "minDate": None, "maxDate": None}
+
+
 @router.get("/branches", response_model=list[Branch])
 def get_branches(date_: str | None = Query(default=None, alias="date")):
     try:
@@ -280,9 +289,12 @@ def post_route_param(body: RouteParamUpdate):
 # ── Overview Summary (Demand vs Plan) ─────────────────────────────
 
 @router.get("/overview-summary")
-def get_overview_summary():
+def get_overview_summary(
+    date_: str | None = Query(default=None, alias="date"),
+    period: str = Query(default="day", pattern="^(day|week|month|quarter|year)$"),
+):
     try:
-        data = repo.fetch_overview_summary()
+        data = repo.fetch_overview_summary(date_, period)
         log.info("v2 /overview-summary OK")
         return {"source": "unity_catalog", **data}
     except Exception as e:

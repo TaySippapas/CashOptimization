@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
+import { ArrowLeft } from "lucide-react";
 import type { StopType } from "@/types";
 import { thb } from "@/utils/format";
 import { useAppData } from "@/hooks/useAppData";
@@ -19,6 +20,7 @@ const TYPE_LABEL: Record<StopType, string> = {
 };
 
 import RoutePathMap from "@/components/maps/RoutePathMap";
+import ResizableSplit from "@/components/ResizableSplit";
 
 const TONE_COLOR: Record<"green" | "amber" | "sky", string> = {
   green: COLOR.green,
@@ -28,18 +30,41 @@ const TONE_COLOR: Record<"green" | "amber" | "sky", string> = {
 
 export default function RouteDetailPage() {
   const { execs, dataLoading } = useAppData();
+  const navigate = useNavigate();
   const { routeId: initialRouteId } = useParams<{ routeId: string }>();
   const [routeId, setRouteId] = useState<string>(
     () => initialRouteId || execs[0]?.routeId || ""
   );
   const exec = execs.find((e) => e.routeId === routeId) ?? execs[0];
-  if (!exec) return <div className="track-page">No routes available.</div>;
+  if (!exec) {
+    return (
+      <div className="track-page">
+        <div className="detail-bar">
+          <button
+            type="button"
+            className="btn sm detail-back"
+            onClick={() => navigate("/routes")}
+          >
+            <ArrowLeft size={14} /> Route Tracking
+          </button>
+          <span style={{ color: "var(--muted)" }}>No routes available.</span>
+        </div>
+      </div>
+    );
+  }
 
   const utilPct = exec.utilizationPct ?? (exec.vehicleCapacity ? Math.round((exec.cashOnBoard / exec.vehicleCapacity) * 100) : 0);
 
   return (
     <div className="track-page">
       <div className="detail-bar">
+        <button
+          type="button"
+          className="btn sm detail-back"
+          onClick={() => navigate("/routes")}
+        >
+          <ArrowLeft size={14} /> Route Tracking
+        </button>
         <div className="detail-select">
           <label>Select Route</label>
           <select className="select-inline" value={routeId} onChange={(e) => setRouteId(e.target.value)}>
@@ -79,7 +104,9 @@ export default function RouteDetailPage() {
         )}
       </div>
 
-      <div className="track-split detail-split">
+      <ResizableSplit
+        id="route-detail"
+        left={
         <div className="panel" style={dataLoading ? { display: "flex", flexDirection: "column" } : undefined}>
           <div className="panel-head">
             <h2>{exec.routeId} · {exec.label}</h2>
@@ -91,13 +118,14 @@ export default function RouteDetailPage() {
             <RoutePathMap exec={exec} />
           )}
         </div>
-
+        }
+        right={
         <div className="panel">
           <div className="panel-head">
             <h2>Stop List</h2>
             <span className="hint">{exec.completed}/{exec.totalStops} completed</span>
           </div>
-          <div className="panel-body" style={{ padding: 0, maxHeight: 470, overflowY: "auto" }}>
+          <div className="panel-body" style={{ padding: 0, maxHeight: "clamp(280px, 50vh, 520px)", overflowY: "auto" }}>
             <table className="branch-table stop-table">
               <thead>
                 <tr>
@@ -142,7 +170,8 @@ export default function RouteDetailPage() {
             </table>
           </div>
         </div>
-      </div>
+        }
+      />
 
       <div className="detail-cash">
         {dataLoading ? (

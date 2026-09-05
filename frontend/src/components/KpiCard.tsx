@@ -30,6 +30,7 @@ export default function KpiCard({
   sub,
   spark,
   tone,
+  qualifier,
   compareLabel = "vs last week",
 }: {
   icon: React.ReactNode;
@@ -40,6 +41,9 @@ export default function KpiCard({
   sub?: ReactNode;
   spark?: number[];
   tone?: "green" | "amber" | "danger" | "cash";
+  /** How the figure was rolled up over a multi-day window, e.g. "avg/day" or
+   *  "total". Without it a period view can't be read unambiguously. */
+  qualifier?: string;
   compareLabel?: string;
 }) {
   return (
@@ -48,7 +52,10 @@ export default function KpiCard({
         <span className="eo-kpi-icon">{icon}</span>
         {spark && <SparkLine data={spark} color={tone === "danger" ? COLOR.red : tone === "green" ? COLOR.green : COLOR.accent} wFull />}
       </div>
-      <div className="eo-kpi-label">{label}</div>
+      <div className="eo-kpi-label">
+        {label}
+        {qualifier && <span className="eo-kpi-qualifier">{qualifier}</span>}
+      </div>
       <div className="eo-kpi-value">{value}</div>
       {delta ? (
         <div className="eo-kpi-delta">

@@ -29,7 +29,9 @@ DEFAULT_SQL_PATH = ROOT / "scripts" / "sql" / "ktb_cash_route_setup.sql"
 
 def main() -> None:
     sql_path = Path(sys.argv[1]) if len(sys.argv) > 1 else DEFAULT_SQL_PATH
-    raw = sql_path.read_text()
+    # Explicit UTF-8: Windows defaults to cp1252 and fails on the box-drawing
+    # characters used in these files' section headers.
+    raw = sql_path.read_text(encoding="utf-8")
     # Strip full-line comments before splitting, so a statement preceded by a
     # comment block isn't mistaken for a comment-only (skippable) chunk.
     code_only = "\n".join(l for l in raw.splitlines() if not l.strip().startswith("--"))

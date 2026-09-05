@@ -3,6 +3,8 @@ import { Truck, MapPin, Ruler, CheckCircle2, Gauge, Banknote, ExternalLink } fro
 import { useNavigate } from "react-router-dom";
 import { thb } from "@/utils/format";
 import RoutePathMap from "@/components/maps/RoutePathMap";
+import ResizableSplit from "@/components/ResizableSplit";
+import DateFilter from "@/components/DateFilter";
 import { useAppData } from "@/hooks/useAppData";
 import KpiCard, { SkeletonKpiCard } from "@/components/KpiCard";
 import StatusDot from "@/components/StatusDot";
@@ -67,6 +69,11 @@ export default function RouteTrackingPage() {
 
   return (
     <div className="track-page">
+      <div className="page-toolbar">
+        <span className="pt-title">Route Tracking · {summary.totalRoutes} trucks</span>
+        <DateFilter />
+      </div>
+
       {/* ── KPI Cards ── */}
       <div className="kpi-grid track-kpis six">
         {dataLoading ? (
@@ -84,7 +91,9 @@ export default function RouteTrackingPage() {
       </div>
 
       {/* ── Map + Stop Detail ── */}
-      <div className="track-split route-split">
+      <ResizableSplit
+        id="routes"
+        left={
         <div className="panel" style={dataLoading ? { display: "flex", flexDirection: "column" } : undefined}>
           <div className="panel-head">
             <h2>Route Map</h2>
@@ -105,16 +114,17 @@ export default function RouteTrackingPage() {
           {dataLoading ? (
             <Skeleton height="100%" radius={0} style={{ flex: 1, minHeight: 460 }} />
           ) : mapExec ? (
-            <div style={{ height: "100%", minHeight: 460 }}>
+            <div style={{ height: "100%", minHeight: "clamp(320px, 46vh, 520px)" }}>
               <RoutePathMap exec={mapExec} />
             </div>
           ) : (
-            <div style={{ height: 460, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--muted)" }}>
+            <div style={{ height: "clamp(320px, 46vh, 520px)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--muted)" }}>
               No route data available
             </div>
           )}
         </div>
-
+        }
+        right={
         <div className="panel" style={{ display: "flex", flexDirection: "column" }}>
           <div className="panel-head">
             <h2>Stop Detail</h2>
@@ -169,10 +179,11 @@ export default function RouteTrackingPage() {
             )}
           </div>
         </div>
-      </div>
+        }
+      />
 
       {/* ── Route Table ── */}
-      <div className="track-split route-split" style={{ gridTemplateColumns: "1fr" }}>
+      <div className="track-split" style={{ gridTemplateColumns: "1fr" }}>
         <div className="panel">
           <div className="panel-head">
             <h2>Route Fleet Overview</h2>

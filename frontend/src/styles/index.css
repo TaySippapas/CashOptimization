@@ -101,7 +101,7 @@ body,
 
 /* ---------- Sidebar ---------- */
 .sidebar {
-  --sidebar-w: 232px;
+  --sidebar-w: clamp(184px, 17vw, 232px);
   width: var(--sidebar-w);
   flex-shrink: 0;
   display: flex;
@@ -905,7 +905,8 @@ table.edit-table {
   top: 12px;
   right: 12px;
   bottom: 12px;
-  width: 360px;
+  width: min(360px, 42%);
+  min-width: 236px;
   z-index: 600;
   background: var(--overlay);
   backdrop-filter: blur(10px);
@@ -929,9 +930,13 @@ table.edit-table {
   background: var(--overlay-2);
   border: 1px solid var(--border);
   border-radius: 10px;
-  padding: 10px 12px;
-  font-size: 11px;
+  padding: clamp(7px, 0.7vw, 10px) clamp(9px, 0.9vw, 12px);
+  font-size: clamp(9.5px, 0.72vw, 11px);
   backdrop-filter: blur(6px);
+  /* never let the legend outgrow the map it sits on */
+  max-width: min(210px, 42%);
+  max-height: min(60%, 260px);
+  overflow-y: auto;
 }
 
 .map-legend.map-legend-left {
@@ -947,8 +952,9 @@ table.edit-table {
 }
 
 .map-legend .dot {
-  width: 11px;
-  height: 11px;
+  width: 1em;
+  height: 1em;
+  flex: none;
   border-radius: 50%;
 }
 
@@ -1161,6 +1167,17 @@ table.branch-table {
   font-size: 12px;
 }
 
+/* Wide tables scroll inside their own panel instead of stretching the page.
+   Scoped with :has() so panels relying on visible overflow are untouched. */
+.panel-body:has(> table.branch-table) {
+  overflow-x: auto;
+}
+
+/* eo-risk-table is table-layout:fixed and sized to its narrow panel — exempt */
+.panel-body > table.branch-table:not(.eo-risk-table) {
+  min-width: 520px;
+}
+
 .branch-table th {
   text-align: left;
   color: var(--muted);
@@ -1296,9 +1313,66 @@ table.branch-table {
   gap: 16px;
 }
 
+/* ---------- Resizable map / detail split ---------- */
+/* Width comes from the --split-left custom property set inline by
+   ResizableSplit, so media queries below can still override the layout. */
+.resizable-split {
+  display: grid;
+  grid-template-columns: minmax(0, var(--split-left, 50%)) auto minmax(0, 1fr);
+  gap: 16px;
+  align-items: stretch;
+}
+
+.resizable-split.is-dragging {
+  cursor: col-resize;
+  user-select: none;
+}
+
+.split-divider {
+  width: 10px;
+  margin: 0 -3px;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: col-resize;
+  border-radius: 6px;
+  touch-action: none;
+  background: transparent;
+  transition: background 0.15s ease;
+}
+
+.split-divider:hover,
+.resizable-split.is-dragging .split-divider {
+  background: var(--border-soft);
+}
+
+.split-divider:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.split-grip {
+  width: 3px;
+  height: 34px;
+  border-radius: 3px;
+  background: var(--border);
+}
+
+.split-divider:hover .split-grip,
+.resizable-split.is-dragging .split-grip {
+  background: var(--accent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .split-divider {
+    transition: none;
+  }
+}
+
 .health-map {
   position: relative;
-  height: 430px;
+  height: clamp(320px, 46vh, 520px);
   border-bottom-left-radius: 14px;
   border-bottom-right-radius: 14px;
   overflow: hidden;
@@ -1460,9 +1534,6 @@ table.branch-table {
 }
 
 /* ---------- Route Tracking (Page 4) ---------- */
-.route-split {
-  grid-template-columns: 1.6fr 1fr;
-}
 
 .donut-center {
   position: absolute;
@@ -1533,6 +1604,20 @@ table.branch-table {
 }
 
 /* ---------- Truck / Route Detail (Page 5) ---------- */
+/* .btn.* specificity so this wins over .btn.ghost's transparent background */
+.btn.detail-back {
+  flex: none;
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 60%, transparent);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.btn.detail-back:hover {
+  background: color-mix(in srgb, var(--accent) 28%, transparent);
+  border-color: var(--accent);
+}
+
 .detail-bar {
   display: flex;
   align-items: flex-end;
@@ -1615,9 +1700,6 @@ table.branch-table {
   color: var(--muted);
 }
 
-.detail-split {
-  grid-template-columns: 1.4fr 1fr;
-}
 
 .cash-cap {
   background: var(--panel);
@@ -1665,6 +1747,147 @@ table.branch-table {
   border: 1px solid var(--border);
   border-radius: 12px;
   padding: 10px 16px;
+  flex-wrap: wrap;
+}
+
+/* ---------- Date filter ---------- */
+/* Always pinned to the right of the toolbar so it sits in the same spot on
+   every page, whatever else the toolbar holds. */
+.date-filter {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--inset);
+}
+
+/* The overview toolbars are already right-aligned clusters, so the auto
+   margin would add a stray gap there. */
+.overview-actions .date-filter {
+  margin-left: 0;
+}
+
+/* ---------- Period filter ---------- */
+.period-filter {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--inset);
+}
+
+.period-filter .pf-btn {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  padding: 5px 10px;
+  cursor: pointer;
+  border-right: 1px solid var(--border);
+}
+
+.period-filter .pf-btn:last-child {
+  border-right: none;
+}
+
+.period-filter .pf-btn:hover:not(:disabled) {
+  color: var(--text);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.period-filter .pf-btn.active {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.period-filter .pf-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.period-filter .pf-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+/* Window the KPIs actually cover, shown next to the period buttons. */
+.period-range {
+  font-size: 10px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.date-filter .df-icon {
+  color: var(--muted);
+  flex: none;
+}
+
+.date-filter .df-input {
+  background: transparent;
+  border: none;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+  font-family: inherit;
+  padding: 2px 0;
+  color-scheme: dark;
+}
+
+:root[data-theme="light"] .date-filter .df-input {
+  color-scheme: light;
+}
+
+.date-filter .df-input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.date-filter .df-input:disabled {
+  opacity: 0.5;
+}
+
+.date-filter .df-badge {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  border-radius: 999px;
+  padding: 2px 7px;
+  flex: none;
+}
+
+.date-filter .df-reset {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  cursor: pointer;
+  color: var(--amber);
+  background: color-mix(in srgb, var(--amber) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--amber) 45%, transparent);
+  border-radius: 999px;
+  padding: 2px 7px;
+  flex: none;
+}
+
+.date-filter .df-reset:hover {
+  border-color: var(--amber);
 }
 
 .page-toolbar .pt-title {
@@ -2598,8 +2821,9 @@ table.branch-table {
 .eo-kpi-row {
   width: 100%;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
-  gap: 12px;
+  /* minmax floor must be non-zero or auto-fit never wraps and cards crush */
+  grid-template-columns: repeat(auto-fit, minmax(clamp(150px, 13vw, 190px), 1fr));
+  gap: clamp(8px, 0.9vw, 12px);
 }
 
 .eo-kpi {
@@ -2647,6 +2871,24 @@ table.branch-table {
   color: var(--muted);
   text-transform: uppercase;
   letter-spacing: 0.4px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+/* Says how a figure was rolled up over a period — avg/day vs total. */
+.eo-kpi-qualifier {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: none;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  border-radius: 999px;
+  padding: 1px 6px;
+  white-space: nowrap;
 }
 
 .eo-kpi-value {
@@ -2716,7 +2958,7 @@ table.branch-table {
 
 .overview-map-panel .health-map {
   flex: 1;
-  min-height: 440px;
+  min-height: clamp(320px, 46vh, 460px);
   height: auto;
   border-radius: 0 0 14px 14px;
 }
@@ -2726,7 +2968,7 @@ table.branch-table {
   flex: 1;
   display: flex;
   flex-direction: column;
-  min-height: 440px;
+  min-height: clamp(320px, 46vh, 460px);
 }
 
 .eo-map-viewby {
@@ -3069,12 +3311,6 @@ table.branch-table {
   cursor: not-allowed;
 }
 
-@media (max-width: 1280px) {
-  .eo-kpi-row {
-    grid-template-columns: repeat(7, minmax(0, 1fr));
-  }
-}
-
 @media (max-width: 1100px) {
   .overview-main {
     grid-template-columns: 1fr 1fr;
@@ -3084,10 +3320,6 @@ table.branch-table {
   .overview-map-panel {
     grid-row: auto;
     grid-column: 1 / -1;
-  }
-
-  .overview-map-panel .health-map {
-    min-height: 380px;
   }
 
   .overview-glance {
@@ -3112,8 +3344,13 @@ table.branch-table {
 }
 
 @media (max-width: 900px) {
-  .eo-kpi-row {
-    grid-template-columns: repeat(7, minmax(0, 1fr));
+  /* too narrow to sit side by side — stack and retire the drag handle */
+  .resizable-split {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .split-divider {
+    display: none;
   }
 
   .overview-main {
@@ -3125,6 +3362,21 @@ table.branch-table {
   .overview-risk,
   .overview-util {
     grid-column: 1;
+  }
+
+  /* not enough width to sit beside the map toggles — stack above them */
+  .map-legend {
+    left: 12px;
+    bottom: 56px;
+  }
+
+  /* a side panel over a narrow map leaves no map; drop to the flow below it */
+  .dispatch-overlay {
+    position: static;
+    width: auto;
+    min-width: 0;
+    max-height: 320px;
+    margin-top: 10px;
   }
 }
 

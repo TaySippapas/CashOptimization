@@ -1,1 +1,0 @@
-import{c as i,l,a as s,e as u}from"./map.utils-DzQ6xkUV.js";function d(t,e,r){e.center!==r.center&&t.setLatLng(e.center),e.radius!=null&&e.radius!==r.radius&&t.setRadius(e.radius)}const C=i(function({center:e,children:r,...n},c){const a=new l.CircleMarker(e,n);return s(a,u(c,{overlayContainer:a}))},d);export{C};

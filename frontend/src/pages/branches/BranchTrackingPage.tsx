@@ -3,6 +3,8 @@ import { Building2, Truck, PackageOpen, Repeat, MinusCircle, AlertTriangle } fro
 import { generateBranchTracks, summarizeBranchTracks, HEALTH_COLOR } from "@/domain/tracking";
 import { thb } from "@/utils/format";
 import HealthMap, { type MapPoint } from "@/components/maps/HealthMap";
+import ResizableSplit from "@/components/ResizableSplit";
+import DateFilter from "@/components/DateFilter";
 import TrendChart from "@/components/charts/TrendChart";
 import { DenominationGap } from "@/components/charts/DenominationChart";
 import { useAppData } from "@/hooks/useAppData";
@@ -73,7 +75,7 @@ export default function BranchTrackingPage() {
             </option>
           ))}
         </select>
-        <span className="pt-date">Date: {config.params.planDate}</span>
+        <DateFilter />
       </div>
 
       <div className="kpi-grid track-kpis six">
@@ -123,7 +125,9 @@ export default function BranchTrackingPage() {
         )}
       </div>
 
-      <div className="track-split">
+      <ResizableSplit
+        id="branches"
+        left={
         <div className="panel" style={dataLoading ? { display: "flex", flexDirection: "column" } : undefined}>
           <div className="panel-head">
             <h2>Branch Health Map</h2>
@@ -135,13 +139,14 @@ export default function BranchTrackingPage() {
             <HealthMap points={points} showEmergencyLegend />
           )}
         </div>
-
+        }
+        right={
         <div className="panel">
           <div className="panel-head">
             <h2>Branch Summary</h2>
             <span className="hint">actual cash · predicted deposit / withdrawal · fill amount</span>
           </div>
-          <div className="panel-body" style={{ padding: 0, maxHeight: 430, overflowY: "auto" }}>
+          <div className="panel-body" style={{ padding: 0, maxHeight: "clamp(260px, 46vh, 470px)", overflowY: "auto" }}>
             <table className="branch-table">
               <thead>
                 <tr>
@@ -211,7 +216,8 @@ export default function BranchTrackingPage() {
             </table>
           </div>
         </div>
-      </div>
+        }
+      />
 
       <div className="track-split">
         <div className="panel">

@@ -2,7 +2,7 @@
 # Env vars override these defaults (used by Databricks Apps via app.yaml).
 # Schema source of truth: database_table_blueprint.md (12 tables)
 
-warehouse_id: "ef9767b2a2846fa7"   # Starter Warehouse
+warehouse_id: "8321293fad8158d0"   # Serverless Starter Warehouse
 catalog: "mdp_dev_dit"
 schema: "default"
 business_date: "auto"   # auto = latest date in fact_cash_position

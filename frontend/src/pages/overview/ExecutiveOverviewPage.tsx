@@ -17,6 +17,7 @@ import { buildExecutiveMetrics } from "@/domain/executiveOverview";
 import { generateBranchTracks, RISK_COLOR } from "@/domain/tracking";
 import { thb, thbB } from "@/utils/format";
 import HealthMap, { type MapPoint } from "@/components/maps/HealthMap";
+import DateFilter from "@/components/DateFilter";
 import { useAppData } from "@/hooks/useAppData";
 import KpiCard, { SkeletonKpiCard } from "@/components/KpiCard";
 import StatusDot from "@/components/StatusDot";
@@ -130,17 +131,13 @@ export default function ExecutiveOverviewPage() {
       <div className="overview-toolbar">
         <div className="overview-filters">
           <div className="eo-filter">
-            <Calendar size={14} />
-            <span>Date</span>
-            <span className="eo-filter-val">{config.params.planDate}</span>
-          </div>
-          <div className="eo-filter">
             <MapPin size={14} />
             <span>Region</span>
             <span className="eo-filter-val">{config.params.region}</span>
           </div>
         </div>
         <div className="overview-actions">
+          <DateFilter />
           <span className="eo-refresh">Source: Unity Catalog</span>
           <button type="button" className="btn sm ghost" disabled>
             <Filter size={14} /> Filters

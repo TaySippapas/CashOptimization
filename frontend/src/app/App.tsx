@@ -9,6 +9,7 @@ import { loadConfig } from "@/storage/configStore";
 import {
   fetchBranchInputsFromApi,
   fetchBranchesFromApi,
+  fetchDateRange,
   fetchHealth,
   fetchMachinesFromApi,
   fetchRoutesFromApi,
@@ -33,6 +34,10 @@ export default function App() {
   const [ucRoutes, setUcRoutes] = useState<RouteExecution[] | null>(null);
   const [dataSourceLabel, setDataSourceLabel] = useState("Live · loading");
   const [dataLoading, setDataLoading] = useState(true);
+  // "" = latest; the backend resolves MAX(business_date) when no date is sent.
+  const [selectedDate, setSelectedDate] = useState<string>("");
+  const [resolvedDate, setResolvedDate] = useState<string>("");
+  const [dateRange, setDateRange] = useState<{ minDate?: string; maxDate?: string }>();
 
   const plan = useMemo(() => buildPlanFromConfig(config), [config]);
   const generatedExecs = useMemo(
@@ -56,6 +61,10 @@ export default function App() {
     branchTracksOverride: ucBranchTracks ?? undefined,
     dataSourceLabel,
     dataLoading,
+    selectedDate,
+    setSelectedDate,
+    resolvedDate,
+    dateRange,
   };
 
   useEffect(() => {
@@ -67,37 +76,46 @@ export default function App() {
     localStorage.setItem(NAV_COLLAPSED_KEY, navCollapsed ? "1" : "0");
   }, [navCollapsed]);
 
+  // Available date range only needs fetching once — it doesn't change per pick.
   useEffect(() => {
     let cancelled = false;
+    fetchDateRange().then((r) => {
+      if (!cancelled && r) setDateRange({ minDate: r.minDate, maxDate: r.maxDate });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    setDataLoading(true);
     (async () => {
+      const date = selectedDate || undefined;
       const health = await fetchHealth();
       const [m, b, bi, r] = await Promise.all([
-        fetchMachinesFromApi(),
-        fetchBranchesFromApi(),
-        fetchBranchInputsFromApi(),
-        fetchRoutesFromApi("OPTIMIZED"),
+        fetchMachinesFromApi(date),
+        fetchBranchesFromApi(date),
+        fetchBranchInputsFromApi(date),
+        fetchRoutesFromApi("OPTIMIZED", date),
       ]);
       if (cancelled) return;
 
-      if (m?.machines?.length) {
-        setUcMachines(m.machines as Machine[]);
-        if (m.businessDate) setMachineBusinessDate(m.businessDate);
-      }
-      if (b?.branches?.length) {
-        setUcBranchTracks(b.branches as BranchTrack[]);
-      }
+      // Clear stale rows so an empty date doesn't keep showing the old day.
+      setUcMachines(m?.machines?.length ? (m.machines as Machine[]) : null);
+      setUcBranchTracks(b?.branches?.length ? (b.branches as BranchTrack[]) : null);
+      setUcRoutes(r?.routes?.length ? (r.routes as RouteExecution[]) : null);
+      setMachineBusinessDate(m?.businessDate ?? "");
+
+      const served = selectedDate || health?.businessDate || "";
+      setResolvedDate(served);
+
       if (bi?.branches?.length) {
         setConfig((prev) => ({
           ...prev,
           branches: bi.branches as BranchInput[],
-          params: {
-            ...prev.params,
-            planDate: health?.businessDate ?? prev.params.planDate,
-          },
+          params: { ...prev.params, planDate: served || prev.params.planDate },
         }));
-      }
-      if (r?.routes?.length) {
-        setUcRoutes(r.routes as RouteExecution[]);
       }
 
       if (health?.useUnityCatalog && (m?.machines?.length || b?.branches?.length || r?.routes?.length)) {
@@ -111,7 +129,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [selectedDate]);
 
   return (
     <div className={`app ${navCollapsed ? "nav-collapsed" : ""}`}>
