@@ -13,15 +13,24 @@ Built as a **Databricks App** (React frontend + FastAPI backend) reading
 **Source of truth:** [`database_table_blueprint.md`](database_table_blueprint.md) — 12 tables
 (dim/fact model, branch + machine + route domains).
 
-### Unity Catalog (production)
+### Unity Catalog
 
-| Setting | Value |
-|---------|-------|
-| Catalog | `mdp_dev_dit` |
-| Schema | `default` |
-| Warehouse | Starter (`ef9767b2a2846fa7`) |
-| Center | `006CC2` (Khon Kaen) |
+Workspace settings live in `config.yaml`, which is **gitignored** so warehouse
+and catalog identifiers stay out of version control. Set it up once:
+
+```bash
+cp config.example.yaml config.yaml   # then fill in your own values
+```
+
+| Setting | Where it comes from |
+|---------|---------------------|
+| Catalog / Schema | `config.yaml`, or `V2_CATALOG` / `V2_SCHEMA` |
+| Warehouse | `config.yaml`, or `V2_WAREHOUSE_ID` / `DATABRICKS_WAREHOUSE_ID` |
+| Center | `config.yaml` |
 | Business date | `auto` (latest in `fact_cash_position`) |
+
+Auth is never stored in the repo — `databricks auth login` writes an OAuth
+profile to `~/.databrickscfg`, which the SDK picks up at runtime.
 
 ### Tables (12)
 

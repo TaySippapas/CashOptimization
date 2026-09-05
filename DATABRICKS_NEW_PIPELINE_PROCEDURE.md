@@ -4,9 +4,8 @@
 > for the current source of truth. Kept for historical reference only.
 
 > **Status: executed 2026-08-07.** Steps 1–6 below have been run end-to-end
-> against a personal/dev workspace (`dbc-4764346b-2934.cloud.databricks.com`,
-> CLI profile `workspace`, warehouse `eed5dd60424b56c0`) — **not** the
-> production workspace behind `config.yaml`'s `mdp_dev_dit` catalog, since
+> against a personal/dev workspace (details omitted) — **not** the
+> production workspace behind `config.yaml`'s catalog, since
 > that catalog/warehouse aren't reachable from this profile. All 7 target
 > tables are populated and `/api/v2/*` is live locally. Two real issues were
 > hit and fixed along the way — see the callouts in Step 5.1 (broken `COPY

@@ -1,0 +1,42 @@
+# KTB Cash Optimization — Unity Catalog / SQL warehouse config
+#
+# Copy to config.yaml and fill in your own values:
+#   cp config.example.yaml config.yaml
+#
+# config.yaml is gitignored so workspace identifiers stay out of version
+# control. Env vars still override whatever is set here, which is how
+# Databricks Apps supplies them at runtime (see app.yaml).
+#
+# Schema source of truth: database_table_blueprint.md
+
+warehouse_id: "<your-sql-warehouse-id>"   # SQL Warehouses -> Connection details -> HTTP path
+catalog: "<your-catalog>"
+schema: "<your-schema>"
+business_date: "auto"   # auto = latest date in fact_cash_position
+center_id: "<your-center-id>"
+center_name: "<your-center-name>"
+use_unity_catalog: true
+
+# ─── Table paths in Unity Catalog (12 tables per blueprint) ─────────
+# Create them with scripts/sql/v2_schema_setup.sql, then seed with
+# scripts/sql/v2_seed_mock_data.sql if you need demo data.
+tables:
+  # Branch
+  dim_branch: "<catalog>.<schema>.dim_branch"
+  fact_cash_position: "<catalog>.<schema>.fact_cash_position"
+  fact_cash_flow_daily: "<catalog>.<schema>.fact_cash_flow_daily"
+  fact_branch_denomination: "<catalog>.<schema>.fact_branch_denomination"
+  # Machine
+  dim_machine: "<catalog>.<schema>.dim_machine"
+  fact_machine_position: "<catalog>.<schema>.fact_machine_position"
+  fact_machine_denomination: "<catalog>.<schema>.fact_machine_denomination"
+  fact_machine_flow_daily: "<catalog>.<schema>.fact_machine_flow_daily"
+  # Route
+  dim_truck: "<catalog>.<schema>.dim_truck"
+  fact_route_summary: "<catalog>.<schema>.fact_route_summary"
+  fact_route_stop: "<catalog>.<schema>.fact_route_stop"
+  fact_route_stop_denomination: "<catalog>.<schema>.fact_route_stop_denomination"
+
+# Optional overrides via environment:
+#   V2_CATALOG / V2_SCHEMA / V2_WAREHOUSE_ID (used by uc_repo_v2.py)
+#   DATABRICKS_WAREHOUSE_ID  (Apps: valueFrom sql-warehouse)

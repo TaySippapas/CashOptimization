@@ -1,3 +1,7 @@
+# Local workspace config — keeps warehouse/catalog identifiers out of git.
+# Copy config.example.yaml to config.yaml and fill in your own values.
+config.yaml
+
 # Python
 __pycache__/
 *.py[cod]
