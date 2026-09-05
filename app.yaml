@@ -8,28 +8,30 @@ command:
   - "--port"
   - "8000"
 
+# Fill in the catalog/schema and warehouse id for the workspace you deploy to.
+# These are the deployed equivalents of config.yaml, which is gitignored.
 env:
   - name: DATABRICKS_WAREHOUSE_ID
     valueFrom: "sql-warehouse"
   - name: APP_CATALOG
-    value: "mdp_dev_dit"
+    value: "<your-catalog>"
   - name: APP_SCHEMA
-    value: "default"
+    value: "<your-schema>"
   - name: APP_BUSINESS_DATE
     value: "auto"
   - name: APP_REGION_CODE
-    value: "Singapore"
+    value: "<your-region-code>"
   - name: USE_UNITY_CATALOG
     value: "true"
   - name: V2_CATALOG
-    value: "mdp_dev_dit"
+    value: "<your-catalog>"
   - name: V2_SCHEMA
-    value: "default"
+    value: "<your-schema>"
   - name: V2_WAREHOUSE_ID
     valueFrom: "sql-warehouse"
 
 resources:
   - name: "sql-warehouse"
     sql_warehouse:
-      id: "ef9767b2a2846fa7"
+      id: "<your-sql-warehouse-id>"
       permission: "CAN_USE"

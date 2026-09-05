@@ -80,7 +80,7 @@ databricks apps deploy ktb-cash-optimization-v2 \
 # 3. Deploy (same command above)
 ```
 
-App URL: https://ktb-cash-optimization-v2-3964872289883595.aws.databricksapps.com
+App URL: printed by `databricks apps get <app-name>` after deployment.
 
 ## What it shows
 

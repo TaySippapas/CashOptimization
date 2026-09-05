@@ -2,12 +2,12 @@
 
 | | |
 |---|---|
-| Live app | https://cash-optimization-7474652587886975.aws.databricksapps.com |
-| App-facing schema | `stable_classic_nan_fe_vm_catalog.cash_optimization_views` |
-| Source schema | `stable_classic_nan_fe_vm_catalog.cash_optimization_mock` |
+| Live app | see `databricks apps get <app-name>` |
+| App-facing schema | `<catalog>.cash_optimization_views` |
+| Source schema | `<catalog>.cash_optimization_mock` |
 | View filter | latest `business_date` per `region_code` from `app_settings` |
 | Active business date | `2026-07-30` · region `KK` |
-| Warehouse | `23189fee7d892fb8` |
+| Warehouse | see `config.yaml` |
 | Updated | 2026-07-30 |
 
 ```text
