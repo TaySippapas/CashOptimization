@@ -13,7 +13,7 @@ async function getJson<T>(path: string): Promise<T | null> {
 }
 
 // Points at the ktb_cash_route.ops dim/fact pipeline (server/uc_repo_v2.py +
-// server/router_v2.py) — see DATABRICKS_NEW_PIPELINE_PROCEDURE.md. The old
+// server/api/v2.py) — see docs/data/runtime-schema.md. The old
 // /api/* endpoints (server/uc_repo.py) target a catalog/warehouse that isn't
 // reachable from this workspace.
 

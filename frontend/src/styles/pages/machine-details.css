@@ -1,0 +1,65 @@
+
+/* ---- Chip filter (Machine Type) ---- */
+.chip-filter {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.chip {
+  padding: 3px 10px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.chip:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+.chip.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+/* ---- Denom tooltip (Machine table) ---- */
+.denom-tip-popup {
+  position: absolute;
+  z-index: 100;
+  bottom: 100%;
+  right: 0;
+  margin-bottom: 6px;
+  background: var(--popup-bg, var(--panel));
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  padding: 8px 10px;
+  white-space: nowrap;
+  min-width: 280px;
+}
+.denom-tip-table {
+  width: 100%;
+  font-size: 11px;
+  border-collapse: collapse;
+}
+.denom-tip-table th {
+  color: var(--muted);
+  font-weight: 500;
+  padding: 2px 6px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+.denom-tip-table th.num,
+.denom-tip-table td.num {
+  text-align: right;
+}
+.denom-tip-table td {
+  padding: 3px 6px;
+}
+.denom-tip-table .sub {
+  color: var(--muted);
+  font-size: 10px;
+}

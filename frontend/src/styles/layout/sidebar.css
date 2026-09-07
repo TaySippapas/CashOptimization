@@ -1,0 +1,238 @@
+
+/* ---------- Sidebar ---------- */
+.sidebar {
+  --sidebar-w: clamp(184px, 17vw, 232px);
+  width: var(--sidebar-w);
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(175deg, #06152e 0%, #0b3a86 62%, #01a1e2 150%);
+  border-right: 1px solid var(--border);
+  overflow: hidden;
+  transition: width 0.2s ease;
+}
+
+.nav-collapsed .sidebar {
+  --sidebar-w: 66px;
+}
+
+.sidebar-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  min-height: 62px;
+}
+
+.sidebar .brand {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.sidebar .logo {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: #fff;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.28);
+  flex-shrink: 0;
+}
+
+.sidebar .logo img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.sidebar h1 {
+  font-size: 15px;
+  margin: 0;
+  font-weight: 700;
+  line-height: 1.1;
+  white-space: nowrap;
+  color: #fff;
+}
+
+.sidebar .sub {
+  font-size: 11px;
+  color: #cfe6ff;
+  margin-top: 1px;
+  white-space: nowrap;
+}
+
+.sidebar-toggle {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  cursor: pointer;
+  flex-shrink: 0;
+  margin-left: auto;
+  transition: background 0.15s ease;
+}
+
+.sidebar-toggle:hover {
+  background: rgba(255, 255, 255, 0.26);
+}
+
+.nav-collapsed .sidebar .brand {
+  width: 0;
+  gap: 0;
+}
+
+.nav-collapsed .sidebar-top {
+  padding: 12px 0;
+  justify-content: center;
+}
+
+.nav-collapsed .sidebar-toggle {
+  margin-left: 0;
+}
+
+/* ---------- Nav tabs (vertical) ---------- */
+.nav-tabs {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+}
+
+.nav-tabs::-webkit-scrollbar {
+  width: 6px;
+}
+
+.nav-tabs::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+}
+
+.nav-tab {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 10px 12px;
+  border-radius: 9px;
+  font-size: 13px;
+  white-space: nowrap;
+  font-weight: 600;
+  color: #d5e8fb;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+  text-decoration: none;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.nav-tab svg {
+  flex-shrink: 0;
+  opacity: 0.92;
+}
+
+.nav-tab .nav-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nav-tab:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.nav-tab.active {
+  background: #fff;
+  color: var(--ktb-navy);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+}
+
+.nav-tab.active:hover {
+  background: #fff;
+  color: var(--ktb-navy);
+}
+
+.nav-collapsed .nav-tab {
+  justify-content: center;
+  padding: 10px 0;
+}
+
+/* ---------- Sidebar bottom ---------- */
+.sidebar-bottom {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #fff;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  min-width: 0;
+  overflow: hidden;
+}
+
+.pill-dot {
+  color: #4ade80;
+  flex-shrink: 0;
+}
+
+.theme-toggle {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  cursor: pointer;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.theme-toggle:hover {
+  background: rgba(255, 255, 255, 0.28);
+}
+
+.nav-collapsed .sidebar-bottom {
+  flex-direction: column;
+  padding: 12px 0;
+}
+
+.nav-collapsed .pill {
+  padding: 5px;
+}
+
+.nav-collapsed .theme-toggle {
+  margin-left: 0;
+}
+
+/* Hide labels when collapsed */
+.nav-collapsed .nav-label,
+.nav-collapsed .sidebar .brand-text {
+  display: none;
+}

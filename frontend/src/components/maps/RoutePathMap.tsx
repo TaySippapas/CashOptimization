@@ -28,7 +28,7 @@ export default function RoutePathMap({ exec }: { exec: RouteExecution }) {
         <TileLayer key={tileUrl} attribution="Tiles &copy; Esri &mdash; Esri, DeLorme, NAVTEQ" url={tileUrl} />
         <RoadPolyline path={exec.path} color={exec.color} />
         {service.map((s) => (
-          <Marker key={s.seq} position={[s.lat, s.lng]} icon={stopIcon(STOP_TYPE_COLOR[s.type], STOP_STATUS_COLOR[s.status], s.seq)}>
+          <Marker key={`${s.routeId ?? exec.routeId}-${s.seq}`} position={[s.lat, s.lng]} icon={stopIcon(STOP_TYPE_COLOR[s.type], STOP_STATUS_COLOR[s.status], s.seq)}>
             <Popup>
               <div className="popup">
                 <div className="p-title">{s.seq}. {s.location}</div>

@@ -1,48 +1,47 @@
 #!/usr/bin/env python3
-"""Run a scripts/sql/*.sql file against the ktb_cash_route catalog.
+"""Run reviewed SQL using the V2 warehouse connection.
 
-Usage (from repo root):
-  python3 scripts/run_ktb_cash_route_setup.py [path/to/file.sql]
-  # defaults to scripts/sql/ktb_cash_route_setup.sql
-
-Requires the CSVs already uploaded to the volume first:
-  databricks fs cp mock_data/ dbfs:/Volumes/ktb_cash_route/ops/landing/ --recursive -p <profile>
-
-If you hit `SSLCertVerificationError: self-signed certificate in certificate
-chain`, your machine has a locally-trusted root CA (e.g. from a dev proxy)
-that confuses this connector's system-trust SSL context. Force it to use the
-clean certifi bundle instead:
-  SSL_CERT_FILE=$(python3 -c "import certifi; print(certifi.where())") python3 scripts/run_ktb_cash_route_setup.py
+Defaults to the current schema. See scripts/README.md for migrations and seeds.
+Use --dry-run to inspect statements without connecting.
 """
 from __future__ import annotations
 
+import argparse
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-
-from server.uc_repo_v2 import _connection  # noqa: E402
-
-DEFAULT_SQL_PATH = ROOT / "scripts" / "sql" / "ktb_cash_route_setup.sql"
+DEFAULT_SQL_PATH = ROOT / "scripts" / "sql" / "schema" / "v2_schema_setup.sql"
 
 
 def main() -> None:
-    sql_path = Path(sys.argv[1]) if len(sys.argv) > 1 else DEFAULT_SQL_PATH
-    # Explicit UTF-8: Windows defaults to cp1252 and fails on the box-drawing
-    # characters used in these files' section headers.
-    raw = sql_path.read_text(encoding="utf-8")
-    # Strip full-line comments before splitting, so a statement preceded by a
-    # comment block isn't mistaken for a comment-only (skippable) chunk.
-    code_only = "\n".join(l for l in raw.splitlines() if not l.strip().startswith("--"))
-    statements = [s.strip() for s in code_only.split(";") if s.strip()]
-    with _connection() as conn:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("sql_path", nargs="?", type=Path, default=DEFAULT_SQL_PATH)
+    parser.add_argument("--dry-run", action="store_true", help="Print SQL without connecting or executing")
+    args = parser.parse_args()
+    raw = args.sql_path.read_text(encoding="utf-8")
+    # Repository scripts use semicolon-delimited statements, without embedded
+    # semicolons in string literals or procedural blocks.
+    code = "\n".join(line for line in raw.splitlines() if not line.lstrip().startswith("--"))
+    statements = [statement.strip() for statement in code.split(";") if statement.strip()]
+    if args.dry_run:
+        print(f"{len(statements)} statements from {args.sql_path} (no connection opened)")
+        for i, statement in enumerate(statements, 1):
+            print(f"\n-- [{i}/{len(statements)}]\n{statement};")
+        return
+
+    from server.warehouse import connection
+
+    with connection() as conn:
         with conn.cursor() as cur:
-            for i, stmt in enumerate(statements):
-                cur.execute(stmt)
-                print(f"[{i + 1}/{len(statements)}] OK: {stmt.splitlines()[0][:70]}")
-    print(f"Setup complete ({sql_path}).")
+            for i, statement in enumerate(statements, 1):
+                cur.execute(statement)
+                print(f"[{i}/{len(statements)}] OK: {statement.splitlines()[0][:70]}")
+    print(f"Setup complete ({args.sql_path}).")
 
 
 if __name__ == "__main__":
+    # Redirected Windows stdout can default to cp1252; SQL includes Thai text.
+    sys.stdout.reconfigure(encoding="utf-8")
     main()

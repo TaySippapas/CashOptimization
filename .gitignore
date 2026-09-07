@@ -31,3 +31,9 @@ npm-debug.log*
 
 # Other
 mock_data/
+
+# Local test and evaluation artifacts
+.pytest_cache/
+.deepeval/
+.coverage
+htmlcov/

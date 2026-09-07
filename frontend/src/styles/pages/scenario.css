@@ -1,0 +1,237 @@
+
+/* ---------- Scenario / Simulation (Page 8) ---------- */
+.scenario-page {
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.sc-control {
+  display: flex;
+  align-items: flex-end;
+  gap: 20px;
+  padding: 16px 18px;
+}
+
+.sc-control-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sc-control-field label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.scenario-grid {
+  display: grid;
+  grid-template-columns: 0.85fr 1.15fr 1.2fr;
+  gap: 16px;
+  align-items: stretch;
+}
+
+.sc-assumptions {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 0 !important;
+}
+
+.sc-assume-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.sc-assume-row:last-child {
+  border-bottom: none;
+}
+
+.sc-assume-label {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.sc-assume-value {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sc-input {
+  width: 76px;
+  text-align: right;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  padding: 5px 8px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.sc-input:focus {
+  outline: none;
+  border-color: var(--ktb-blue);
+}
+
+.sc-assume-suffix {
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 600;
+  min-width: 42px;
+}
+
+.sc-assume-suffix.pos {
+  color: #22c55e;
+}
+
+.sc-assume-suffix.neg {
+  color: #ef4444;
+}
+
+.sc-results {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.sc-result-row {
+  display: grid;
+  grid-template-columns: 130px 1fr auto;
+  align-items: center;
+  gap: 12px;
+  font-size: 12.5px;
+}
+
+.sc-result-label {
+  color: var(--muted);
+}
+
+.sc-result-track {
+  height: 12px;
+  background: var(--border-soft);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.sc-result-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.4s ease;
+}
+
+.sc-result-value {
+  font-weight: 700;
+  white-space: nowrap;
+  min-width: 128px;
+  text-align: right;
+}
+
+.sc-delta {
+  font-size: 11px;
+  font-weight: 600;
+  margin-left: 2px;
+}
+
+.sc-delta.good {
+  color: #22c55e;
+}
+
+.sc-delta.bad {
+  color: #ef4444;
+}
+
+.sc-delta.flat {
+  color: var(--muted);
+}
+
+.sc-map-panel {
+  display: flex;
+  flex-direction: column;
+}
+
+.sc-map {
+  position: relative;
+  flex: 1;
+  min-height: 300px;
+  border-radius: 0 0 14px 14px;
+  overflow: hidden;
+}
+
+.sc-map .map-wrap,
+.sc-map .leaflet-container {
+  height: 100%;
+  width: 100%;
+}
+
+.sc-reco {
+  padding: 18px 20px;
+  position: relative;
+}
+
+.sc-reco-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.sc-reco-head h2 {
+  font-size: 14px;
+  margin: 0;
+  font-weight: 700;
+}
+
+.sc-reco-body {
+  font-size: 13px;
+  color: var(--text);
+  line-height: 1.5;
+  max-width: 70%;
+}
+
+.sc-reco-body p {
+  margin: 4px 0;
+}
+
+.sc-apply {
+  position: absolute;
+  right: 20px;
+  bottom: 18px;
+}
+
+@media (max-width: 1200px) {
+  .scenario-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .sc-map-panel {
+    grid-column: 1 / -1;
+  }
+
+  .sc-map {
+    min-height: 340px;
+  }
+
+  .sc-reco-body {
+    max-width: 100%;
+  }
+
+  .sc-apply {
+    position: static;
+    margin-top: 14px;
+  }
+}
+
+@media (max-width: 760px) {
+  .scenario-grid {
+    grid-template-columns: 1fr;
+  }
+}

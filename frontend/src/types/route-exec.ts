@@ -6,6 +6,9 @@ export type StopStatus = "Completed" | "In Progress" | "Pending";
 
 export interface RouteStopExec {
   seq: number;
+  // Set only when stops from several routes are merged into one list: seq
+  // restarts at 1 per route, so it alone cannot identify a stop in that view.
+  routeId?: string;
   code: string;          // machine_code or branch_code (comma-sep for merged)
   location: string;
   type: StopType;        // mapped from action_type: Start/Deliver/Pickup/Return

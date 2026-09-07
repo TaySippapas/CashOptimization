@@ -304,8 +304,10 @@ export function summarizeBranchTracks(tracks: BranchTrack[]): BranchTrackSummary
         let deposit = 0;
         let withdraw = 0;
         tracks.forEach((t) => {
-          deposit += t.trend[i].deposit;
-          withdraw += t.trend[i].withdraw;
+          // Guarded like summarizeMachines: a branch with less flow history
+          // than the first one would otherwise crash the whole page.
+          deposit += t.trend?.[i]?.deposit ?? 0;
+          withdraw += t.trend?.[i]?.withdraw ?? 0;
         });
         return { day: tracks[0].trend[i].day, deposit, withdraw, net: deposit - withdraw };
       })

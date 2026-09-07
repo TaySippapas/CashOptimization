@@ -43,7 +43,13 @@ export default function RouteTrackingPage() {
     if (!execs.length) return null;
     // Build a synthetic "all routes" exec for multi-route map view
     const allPath: [number, number][] = execs.flatMap((e) => e.path);
-    const allStops = execs.flatMap((e) => e.stops.filter((s) => s.type !== "Start" && s.type !== "Return"));
+    // Tag each stop with its owning route: seq restarts at 1 per route, so the
+    // merged list would otherwise hold several stops numbered 1, 2, ...
+    const allStops = execs.flatMap((e) =>
+      e.stops
+        .filter((s) => s.type !== "Start" && s.type !== "Return")
+        .map((s) => ({ ...s, routeId: e.routeId }))
+    );
     const depot = execs[0];
     return {
       ...depot,

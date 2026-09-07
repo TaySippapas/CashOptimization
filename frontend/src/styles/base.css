@@ -1,0 +1,100 @@
+:root {
+  --bg: #0a0e17;
+  --bg-2: #111725;
+  --panel: #151c2c;
+  --panel-2: #1b2436;
+  --border: #26314a;
+  --border-soft: rgba(38, 49, 74, 0.5);
+  --text: #e6ecf7;
+  --muted: #8a97b1;
+  --accent: #38bdf8;
+  --ktb-blue: #01a1e2;
+  --ktb-navy: #0b3a86;
+  --green: #22c55e;
+  --amber: #f59e0b;
+  --red: #ef4444;
+  --sky: #0ea5e9;
+  --purple: #a855f7;
+  --slate: #64748b;
+  --orange: #f97316;
+  --gold: #eab308;
+  --blue: #2563eb;
+
+  /* themed surfaces */
+  --sunken: #0a0f1c;
+  --inset: #0d1526;
+  --raised: #10192c;
+  --input-focus: #0c1424;
+  --popup-bg: #0f1728;
+  --map-bg: #0d1526;
+  --overlay: rgba(9, 13, 22, 0.88);
+  --overlay-2: rgba(10, 14, 23, 0.9);
+  --code-text: #cbd5e1;
+  --code-key: #7dd3fc;
+  --code-key-2: #93c5fd;
+  --kpi-danger-bg: linear-gradient(160deg, #241016 0%, #26161b 100%);
+  --kpi-amber-bg: linear-gradient(160deg, #241d0f 0%, #26210f 100%);
+  --kpi-hero-bg: linear-gradient(160deg, #10241a 0%, #16261f 100%);
+  --kpi-cash-bg: linear-gradient(160deg, #0a2233 0%, #0f2536 100%);
+  --shadow-marker: rgba(0, 0, 0, 0.5);
+
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+[data-theme="light"] {
+  --bg: #eef2f8;
+  --bg-2: #e3e9f3;
+  --panel: #ffffff;
+  --panel-2: #f3f6fc;
+  --border: #d5deee;
+  --border-soft: rgba(148, 163, 184, 0.35);
+  --text: #10203a;
+  --muted: #5c6b85;
+  --accent: #0284c7;
+  --sky: #0284c7;
+
+  --sunken: #eef2f8;
+  --inset: #f3f6fc;
+  --raised: #eaf0f8;
+  --input-focus: #ffffff;
+  --popup-bg: #ffffff;
+  --map-bg: #dbe4ef;
+  --overlay: rgba(255, 255, 255, 0.92);
+  --overlay-2: rgba(255, 255, 255, 0.93);
+  --code-text: #334155;
+  --code-key: #0369a1;
+  --code-key-2: #0369a1;
+  --kpi-danger-bg: linear-gradient(160deg, #fdecec 0%, #fbe3e6 100%);
+  --kpi-amber-bg: linear-gradient(160deg, #fdf3e0 0%, #fbeecd 100%);
+  --kpi-hero-bg: linear-gradient(160deg, #e7f7ee 0%, #ddf3e6 100%);
+  --kpi-cash-bg: linear-gradient(160deg, #e4f2fb 0%, #d8ecf8 100%);
+  --shadow-marker: rgba(15, 30, 60, 0.28);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.app {
+  display: flex;
+  flex-direction: row;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.main-col {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}

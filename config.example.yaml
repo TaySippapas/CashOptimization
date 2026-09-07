@@ -7,7 +7,7 @@
 # control. Env vars still override whatever is set here, which is how
 # Databricks Apps supplies them at runtime (see app.yaml).
 #
-# Schema source of truth: database_table_blueprint.md
+# Runtime schema and setup order: docs/data/runtime-schema.md
 
 warehouse_id: "<your-sql-warehouse-id>"   # SQL Warehouses -> Connection details -> HTTP path
 catalog: "<your-catalog>"
@@ -17,9 +17,10 @@ center_id: "<your-center-id>"
 center_name: "<your-center-name>"
 use_unity_catalog: true
 
-# ─── Table paths in Unity Catalog (12 tables per blueprint) ─────────
-# Create them with scripts/sql/v2_schema_setup.sql, then seed with
-# scripts/sql/v2_seed_mock_data.sql if you need demo data.
+# ─── Table paths in Unity Catalog (12 runtime tables) ─────────
+# Reference inventory only: the backend derives names from catalog/schema;
+# it does not read per-table overrides from this mapping.
+# Setup and migration order: scripts/README.md. Demo seeds replace data.
 tables:
   # Branch
   dim_branch: "<catalog>.<schema>.dim_branch"
@@ -35,8 +36,22 @@ tables:
   dim_truck: "<catalog>.<schema>.dim_truck"
   fact_route_summary: "<catalog>.<schema>.fact_route_summary"
   fact_route_stop: "<catalog>.<schema>.fact_route_stop"
-  fact_route_stop_denomination: "<catalog>.<schema>.fact_route_stop_denomination"
+  # Configuration
+  dim_route_parameter: "<catalog>.<schema>.dim_route_parameter"
+
+# ─── Warehouse pool / read cache tuning (optional) ──────────────────
+# Defaults shown. Check the "pool" block on GET /api/v2/health before
+# changing these — sustained poolMisses with idle at 0 means pool_size is
+# too small for the concurrent fan-out; a low cacheHits:cacheMisses ratio
+# means result_cache_ttl_s is shorter than the gap between page loads.
+# pool_size 14 holds a measured 12-16 concurrent checkouts from two
+# simultaneous users; one user alone only reaches ~6, so don't size off a
+# single-user peak. Raise it if more people use the dashboard at once.
+# pool_size: 14              # max pooled warehouse connections
+# pool_max_age_s: 300        # drop a pooled connection older than this
+# result_cache_ttl_s: 180    # memoise reads for this long
 
 # Optional overrides via environment:
-#   V2_CATALOG / V2_SCHEMA / V2_WAREHOUSE_ID (used by uc_repo_v2.py)
+#   V2_CATALOG / V2_SCHEMA / V2_WAREHOUSE_ID (used by server/repositories/ and server/warehouse.py)
 #   DATABRICKS_WAREHOUSE_ID  (Apps: valueFrom sql-warehouse)
+#   APP_POOL_SIZE / APP_POOL_MAX_AGE_S / APP_RESULT_CACHE_TTL_S

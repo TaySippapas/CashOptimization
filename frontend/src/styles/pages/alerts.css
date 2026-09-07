@@ -1,0 +1,118 @@
+
+/* ---------- Alerts & Exceptions (Page 7) ---------- */
+.alerts-page {
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.alert-kpi-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+}
+
+.alerts-split {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr;
+  gap: 16px;
+  align-items: start;
+}
+
+.alerts-charts {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.alerts-filter-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  color: var(--muted);
+}
+
+.alerts-table th,
+.alerts-table td {
+  font-size: 12px;
+  padding: 10px 12px;
+  vertical-align: middle;
+}
+
+.alerts-table .al-time {
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.alerts-table .al-desc {
+  max-width: 280px;
+  line-height: 1.35;
+}
+
+.alerts-view-all {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 100%;
+  padding: 12px;
+  border: none;
+  border-top: 1px solid var(--border);
+  background: transparent;
+  color: var(--ktb-blue);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.alerts-view-all:hover {
+  background: var(--panel-2);
+}
+
+[data-theme="light"] .alerts-view-all {
+  color: var(--ktb-navy);
+}
+
+.alerts-type-chart {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.alerts-type-legend {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.al-type-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.al-type-val {
+  margin-left: auto;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.alerts-donut-wrap {
+  width: 180px;
+  flex-shrink: 0;
+}
+
+@media (max-width: 1100px) {
+  .alert-kpi-row {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .alerts-split {
+    grid-template-columns: 1fr;
+  }
+}

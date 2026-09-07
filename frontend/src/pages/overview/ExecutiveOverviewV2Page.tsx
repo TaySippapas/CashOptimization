@@ -19,7 +19,7 @@ import StatusDot from "@/components/StatusDot";
 import Pill from "@/components/Pill";
 import Skeleton from "@/components/Skeleton";
 import DateFilter from "@/components/DateFilter";
-import PeriodFilter, { type Period } from "@/components/PeriodFilter";
+import PeriodFilter, { type Period } from "./_PeriodFilter";
 import { COLOR } from "@/utils/colors";
 
 const API = "/api/v2";

@@ -4,7 +4,7 @@ import { useAppData } from "@/hooks/useAppData";
 import MapView from "@/components/maps/MapView";
 import RoutePanel from "./_RoutePanel";
 import KpiCards from "./_KpiCards";
-import ComparisonChart from "@/components/charts/ComparisonChart";
+import ComparisonChart from "./_ComparisonChart";
 import BranchTable from "./_BranchTable";
 import { ReductionBadge } from "@/components/TrendIcon";
 import StatBox, { SkeletonStatBox } from "@/components/StatBox";

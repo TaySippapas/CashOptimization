@@ -9,14 +9,13 @@ from __future__ import annotations
 import logging
 import os
 import threading
-from typing import Any
 
 from fastapi import FastAPI, Query
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from server.mock import build_plan
-from server.router_v2 import router as router_v2  # ktb_cash_route.ops dim/fact API, see DATABRICKS_NEW_PIPELINE_PROCEDURE.md
+from server.api.v2 import router as router_v2  # ktb_cash_route.ops dim/fact API, see docs/data/runtime-schema.md
 from server.settings import get_settings
 
 logging.basicConfig(level=logging.INFO)
@@ -36,7 +35,7 @@ def _warm_uc_pool() -> None:
 
     def run() -> None:
         try:
-            from server.uc_repo_v2 import warm_pool
+            from server.warehouse import warm_pool
 
             warm_pool()
             log.info("UC connection pool warmed")
@@ -50,7 +49,7 @@ def _warm_uc_pool() -> None:
 def _close_uc_pool() -> None:
     """Close pooled warehouse connections instead of leaving them to the GC."""
     try:
-        from server.uc_repo_v2 import close_pool
+        from server.warehouse import close_pool
 
         close_pool()
     except Exception:
