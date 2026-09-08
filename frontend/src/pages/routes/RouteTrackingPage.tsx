@@ -7,10 +7,11 @@ import ResizableSplit from "@/components/ResizableSplit";
 import DateFilter from "@/components/DateFilter";
 import TrendsLink from "@/components/TrendsLink";
 import { useAppData } from "@/hooks/useAppData";
+import { useWeeklyComparison } from "@/hooks/useWeeklyComparison";
 import KpiCard, { SkeletonKpiCard } from "@/components/KpiCard";
 import StatusDot from "@/components/StatusDot";
 import Skeleton from "@/components/Skeleton";
-import { ROUTE_STATUS_COLOR, STOP_TYPE_COLOR } from "@/domain/routeExec";
+import { ROUTE_STATUS_COLOR, STOP_TYPE_COLOR, summarizeRoutes } from "@/domain/routeExec";
 import { COLOR } from "@/utils/colors";
 import type { RouteExecution } from "@/types";
 
@@ -30,6 +31,10 @@ function fmtCashShort(v: number): string {
 
 export default function RouteTrackingPage() {
   const { execs, routeSummary: summary, dataLoading } = useAppData();
+  const weekly = useWeeklyComparison("routes");
+  const previous = useMemo(() => weekly.rows ? summarizeRoutes(weekly.rows) : null, [weekly.rows]);
+  const compare = (key: "totalRoutes" | "totalStops" | "totalDistanceKm" | "costOfTransport" | "utilizationPct" | "slaPct", better?: "higher" | "lower", unit: "%" | "pp" = "%") =>
+    weekly.compare(execs.length ? summary[key] : null, previous?.[key] ?? null, better, unit);
   const navigate = useNavigate();
   const [selectedRouteId, setSelectedRouteId] = useState<string>("");
 
@@ -88,12 +93,12 @@ export default function RouteTrackingPage() {
           Array.from({ length: 6 }).map((_, i) => <SkeletonKpiCard key={i} />)
         ) : (
           <>
-            <KpiCard icon={<Truck size={18} color={COLOR.accent} />} label="Total Trucks" value={String(summary.totalRoutes)} />
-            <KpiCard icon={<MapPin size={18} color={COLOR.purple} />} label="Total Stops" value={String(summary.totalStops)} />
-            <KpiCard icon={<Ruler size={18} color={COLOR.accent} />} label="Total Distance" value={`${summary.totalDistanceKm} km`} />
-            <KpiCard icon={<Banknote size={18} color={COLOR.amber} />} label="Cost of Transport" value={thb(summary.costOfTransport)} tone="amber" />
-            <KpiCard icon={<Gauge size={18} color={COLOR.accent} />} label="Avg Utilization" value={`${summary.utilizationPct}%`} />
-            <KpiCard icon={<CheckCircle2 size={18} color={COLOR.green} />} label="SLA Achievement" value={summary.slaPct != null ? `${summary.slaPct}%` : "—"} tone={summary.slaPct != null ? "green" : undefined} />
+            <KpiCard icon={<Truck size={18} color={COLOR.accent} />} label="Total Trucks" value={String(summary.totalRoutes)} {...compare("totalRoutes")} />
+            <KpiCard icon={<MapPin size={18} color={COLOR.purple} />} label="Total Stops" value={String(summary.totalStops)} {...compare("totalStops")} />
+            <KpiCard icon={<Ruler size={18} color={COLOR.accent} />} label="Total Distance" value={`${summary.totalDistanceKm} km`} {...compare("totalDistanceKm")} />
+            <KpiCard icon={<Banknote size={18} color={COLOR.amber} />} label="Cost of Transport" value={thb(summary.costOfTransport)} tone="amber" {...compare("costOfTransport", "lower")} />
+            <KpiCard icon={<Gauge size={18} color={COLOR.accent} />} label="Avg Utilization" value={`${summary.utilizationPct}%`} {...compare("utilizationPct", undefined, "pp")} />
+            <KpiCard icon={<CheckCircle2 size={18} color={COLOR.green} />} label="SLA Achievement" value={summary.slaPct != null ? `${summary.slaPct}%` : "—"} tone={summary.slaPct != null ? "green" : undefined} {...compare("slaPct", "higher", "pp")} />
           </>
         )}
       </div>
@@ -211,7 +216,7 @@ export default function RouteTrackingPage() {
                   <th className="num" style={{ textAlign: "center" }}>CoT</th>
                   <th className="num" style={{ textAlign: "center" }}>Duration</th>
                   <th className="num" style={{ textAlign: "center" }}>OT</th>
-                  <th style={{ width: 36 }}></th>
+                  <th style={{ width: 108 }}><span className="fleet-action-heading">Details</span></th>
                 </tr>
               </thead>
               <tbody>
@@ -226,10 +231,8 @@ export default function RouteTrackingPage() {
                   : execs.map((e) => (
                     <tr
                       key={e.routeId}
-                      style={{
-                        cursor: "pointer",
-                        background: e.routeId === selectedRouteId ? "rgba(56,189,248,0.08)" : undefined,
-                      }}
+                      className={`fleet-overview-row${e.routeId === selectedRouteId ? " is-selected" : ""}`}
+                      title={e.routeId === selectedRouteId ? "Click to show all routes on the map" : `Click to show ${e.truckId} on the map`}
                       onClick={() => setSelectedRouteId(e.routeId === selectedRouteId ? "" : e.routeId)}
                     >
                       <td>
@@ -266,11 +269,12 @@ export default function RouteTrackingPage() {
                       <td style={{ textAlign: "center" }}>
                         <button
                           type="button"
-                          className="btn sm ghost"
+                          className="btn sm ghost fleet-detail-link"
                           title="View truck detail"
+                          aria-label={`View route details for ${e.truckId}`}
                           onClick={(ev) => { ev.stopPropagation(); navigate(`/routes/${e.routeId}`); }}
-                          style={{ padding: 2, lineHeight: 1 }}
                         >
+                          <span className="fleet-detail-label">View route</span>
                           <ExternalLink size={13} />
                         </button>
                       </td>

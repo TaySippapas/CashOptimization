@@ -1,3 +1,4 @@
+import { apiFetch } from "@/api/client";
 import { useEffect, useMemo, useState } from "react";
 import {
   Banknote,
@@ -12,6 +13,7 @@ import {
 } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
 import { thb, thbB } from "@/utils/format";
+import { dailyComparison } from "@/domain/dailyComparison";
 import HealthMap, { type MapPoint } from "@/components/maps/HealthMap";
 import { useAppData } from "@/hooks/useAppData";
 import KpiCard, { SkeletonKpiCard } from "@/components/KpiCard";
@@ -56,6 +58,30 @@ const STATUS_COLOR: Record<string, string> = {
   "At Risk": COLOR.red,
 };
 
+/** Each period is read against the next-longer window it sits inside: a day
+ *  against its week, a week against its month, and so on. The longest window
+ *  has nothing to sit inside, so it gets no comparison. */
+const BASELINE: Record<Period, Period | null> = {
+  day: "week",
+  week: "month",
+  month: "quarter",
+  quarter: "year",
+  year: null,
+};
+
+const PERIOD_LABEL: Record<Period, string> = {
+  day: "1D", week: "1W", month: "1M", quarter: "3M", year: "1Y",
+};
+
+/** The tracking pages' delta formatting, reused so a percentage reads the same
+ *  everywhere. Only the baseline differs — a longer window here rather than the
+ *  same day last week — so its date-derived label is dropped and the caller
+ *  passes the period label to KpiCard instead. Counts and amounts compare in
+ *  percent; rates already on a 0–100 scale compare in points. */
+function periodDelta(current: number, baseline: number, unit: "%" | "pp", better?: "higher" | "lower") {
+  return dailyComparison(current, baseline, "", { unit, better }).delta;
+}
+
 function fmtHours(min: number): string {
   if (!min) return "\u2014";
   const h = Math.floor(min / 60);
@@ -66,6 +92,7 @@ function fmtHours(min: number): string {
 export default function ExecutiveOverviewV2Page() {
   const { execs, routeSummary, machinesOverride, branchTracksOverride, dataLoading, selectedDate } = useAppData();
   const [ov, setOv] = useState<OverviewData | null>(null);
+  const [base, setBase] = useState<OverviewData | null>(null);
   const [ovLoading, setOvLoading] = useState(true);
   const [ovError, setOvError] = useState<string | null>(null);
   const [mapLayers, setMapLayers] = useState({ machines: true, branches: true });
@@ -75,16 +102,27 @@ export default function ExecutiveOverviewV2Page() {
     let cancelled = false;
     setOvLoading(true);
     setOvError(null);
+    const load = async (p: Period) => {
+      const params = new URLSearchParams({ period: p });
+      if (selectedDate) params.set("date", selectedDate);
+      const res = await apiFetch(`${API}/overview-summary?${params}`);
+      if (!res.ok) throw new Error(`Backend returned ${res.status}`);
+      return res.json();
+    };
     (async () => {
       try {
-        const params = new URLSearchParams({ period });
-        if (selectedDate) params.set("date", selectedDate);
-        const res = await fetch(`${API}/overview-summary?${params}`);
-        if (!res.ok) throw new Error(`Backend returned ${res.status}`);
-        const r = await res.json();
+        const basePeriod = BASELINE[period];
+        // Fetched alongside, not after, so a tile and its delta appear together
+        // instead of the cards growing a beat later. A baseline that fails just
+        // costs the deltas — it must never take the page down with it.
+        const [r, b] = await Promise.all([
+          load(period),
+          basePeriod ? load(basePeriod).catch(() => null) : Promise.resolve(null),
+        ]);
         if (cancelled) return;
         if (r.error) setOvError(r.error);
         else setOv(r as OverviewData);
+        setBase(b && !b.error ? (b as OverviewData) : null);
       } catch (e: any) {
         if (!cancelled) setOvError(e?.message ?? "Network error");
       } finally {
@@ -105,6 +143,26 @@ export default function ExecutiveOverviewV2Page() {
   const multiDay = period !== "day";
   const avgTag = multiDay ? "avg/day" : undefined;
   const totalTag = multiDay ? `total · ${period === "quarter" ? "3M" : period === "week" ? "1W" : period === "month" ? "1M" : "1Y"}` : undefined;
+
+  // Every tile is compared with the same figure over the next-longer window.
+  // Period totals are reduced to a daily rate on both sides first, so one day
+  // is measured against the baseline's average day rather than its whole total
+  // (which would read as -86% every time). Stocks and rates already arrive from
+  // the API as per-day averages, so those compare directly.
+  const baselinePeriod = BASELINE[period];
+  const compareLabel = baselinePeriod ? `vs ${PERIOD_LABEL[baselinePeriod]} avg` : undefined;
+  const deltas = useMemo(() => {
+    if (!ov || !base) return null;
+    const perDay = (value: number, d: OverviewData) => value / Math.max(d.periodDays, 1);
+    const servicePointsOf = (d: OverviewData) => d.demand.branch.needService + d.demand.machine.needService;
+    return {
+      cash: periodDelta(ov.cashUnderManagement, base.cashUnderManagement, "%"),
+      cit: periodDelta(perDay(ov.cost.citTotal, ov), perDay(base.cost.citTotal, base), "%", "lower"),
+      service: periodDelta(servicePointsOf(ov), servicePointsOf(base), "%"),
+      sla: periodDelta(ov.plan.avgSlaPct, base.plan.avgSlaPct, "pp", "higher"),
+      util: periodDelta(ov.plan.avgUtilizationPct, base.plan.avgUtilizationPct, "pp", "higher"),
+    };
+  }, [ov, base]);
 
   // Route status donut
   const donut = useMemo(() => [
@@ -238,6 +296,8 @@ export default function ExecutiveOverviewV2Page() {
               label="Total Cash Under Management"
               value={ov ? thbB(ov.cashUnderManagement) : "—"}
               qualifier={avgTag}
+              delta={deltas?.cash}
+              compareLabel={compareLabel}
               sub={ov ? `${ov.demand.branch.total} branches · ${ov.demand.machine.total} machines` : undefined}
             />
             <KpiCard
@@ -252,13 +312,17 @@ export default function ExecutiveOverviewV2Page() {
               label="CIT Cost"
               value={ov ? thb(ov.cost.citTotal) : "—"}
               qualifier={totalTag}
+              delta={deltas?.cit}
+              compareLabel={compareLabel}
               sub={ov ? `CoT ${thb(ov.cost.cot)} · CoF ${ov.cost.cof != null ? thb(ov.cost.cof) : "—"}` : undefined}
             />
             <KpiCard
               icon={<Wrench size={18} color={COLOR.red} />}
               label="Service Points (Demand)"
               value={ov ? `${servicePoints} points` : "—"}
-              qualifier={totalTag}
+              qualifier={avgTag}
+              delta={deltas?.service}
+              compareLabel={compareLabel}
               sub={ov ? `${ov.demand.branch.needService} Br · ${ov.demand.machine.needService} Machine` : undefined}
               tone="danger"
             />
@@ -267,6 +331,8 @@ export default function ExecutiveOverviewV2Page() {
               label="Route SLA"
               value={ov ? `${ov.plan.avgSlaPct}%` : "—"}
               qualifier={avgTag}
+              delta={deltas?.sla}
+              compareLabel={compareLabel}
               tone="green"
             />
             <KpiCard
@@ -274,6 +340,8 @@ export default function ExecutiveOverviewV2Page() {
               label="Vehicle Utilization"
               value={ov ? `${ov.plan.avgUtilizationPct}%` : "—"}
               qualifier={avgTag}
+              delta={deltas?.util}
+              compareLabel={compareLabel}
             />
           </>
         )}

@@ -9,6 +9,7 @@ import TrendsLink from "@/components/TrendsLink";
 import TrendChart from "@/components/charts/TrendChart";
 import { DenominationGap } from "@/components/charts/DenominationChart";
 import { useAppData } from "@/hooks/useAppData";
+import { useWeeklyComparison } from "@/hooks/useWeeklyComparison";
 import KpiCard, { SkeletonKpiCard } from "@/components/KpiCard";
 import StatusDot from "@/components/StatusDot";
 import Skeleton from "@/components/Skeleton";
@@ -30,6 +31,10 @@ export default function BranchTrackingPage() {
     [tracksOverride, config]
   );
   const summary = useMemo(() => summarizeBranchTracks(tracks), [tracks]);
+  const weekly = useWeeklyComparison("branches");
+  const previous = useMemo(() => weekly.rows ? summarizeBranchTracks(weekly.rows) : null, [weekly.rows]);
+  const compare = (key: "total" | "delivery" | "pickup" | "both" | "noAction" | "emergency", better?: "higher" | "lower") =>
+    weekly.compare(tracks.length ? summary[key] : null, previous?.[key] ?? null, better);
   const [selectedCode, setSelectedCode] = useState<string>(ALL_BRANCHES);
   const isAll = selectedCode === ALL_BRANCHES;
   const selected = tracks.find((t) => t.code === selectedCode) ?? tracks[0];
@@ -89,38 +94,38 @@ export default function BranchTrackingPage() {
               icon={<Building2 size={18} color={COLOR.accent} />}
               label="Total branches"
               value={String(summary.total)}
-              delta={{ text: "2.1%", dir: "up", good: true }}
+              {...compare("total")}
             />
             <KpiCard
               icon={<Truck size={18} color={COLOR.amber} />}
               label="Delivery"
               value={String(summary.delivery)}
-              delta={{ text: "8.3%", dir: "up", good: false }}
+              {...compare("delivery", "lower")}
               tone="amber"
             />
             <KpiCard
               icon={<PackageOpen size={18} color={COLOR.sky} />}
               label="Pickup"
               value={String(summary.pickup)}
-              delta={{ text: "5.6%", dir: "up", good: false }}
+              {...compare("pickup", "lower")}
             />
             <KpiCard
               icon={<Repeat size={18} color={COLOR.purple} />}
               label="Both (Del + Pick)"
               value={String(summary.both)}
-              delta={{ text: "0%", dir: "up", good: false }}
+              {...compare("both", "lower")}
             />
             <KpiCard
               icon={<MinusCircle size={18} color={COLOR.slate} />}
               label="No action"
               value={String(summary.noAction)}
-              delta={{ text: "12%", dir: "down", good: true }}
+              {...compare("noAction", "higher")}
             />
             <KpiCard
               icon={<AlertTriangle size={18} color={COLOR.red} />}
               label="Emergency"
               value={String(summary.emergency)}
-              delta={{ text: "14.3%", dir: "down", good: true }}
+              {...compare("emergency", "lower")}
               tone="danger"
             />
           </>

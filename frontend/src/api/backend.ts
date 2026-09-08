@@ -1,5 +1,6 @@
 /** Fetch operational data from the FastAPI / Unity Catalog backend. */
 
+import { apiFetch, USE_MOCK_DATA } from "./client";
 import type { RouteExecution } from "@/types";
 
 export type DataSource = "unity_catalog" | "mock" | "error" | "local";
@@ -7,7 +8,7 @@ export type TrackingDataset = "branches" | "machines" | "routes";
 
 async function getJson<T>(path: string): Promise<T | null> {
   try {
-    const res = await fetch(path);
+    const res = await apiFetch(path);
     if (!res.ok) return null;
     return (await res.json()) as T;
   } catch {
@@ -36,7 +37,7 @@ export async function fetchMachinesFromApi(date?: string): Promise<{
   const data = await getJson<{ source: DataSource; businessDate?: string; machines: unknown[]; error?: string }>(
     `/api/v2/machine-tracks${qs({ date })}`
   );
-  if (data?.source !== "unity_catalog" || !Array.isArray(data.machines)) return null;
+  if ((data?.source !== "unity_catalog" && !(USE_MOCK_DATA && data?.source === "mock")) || !Array.isArray(data.machines)) return null;
   return { source: data.source, businessDate: data.businessDate ?? "", machines: data.machines };
 }
 
@@ -48,7 +49,7 @@ export async function fetchBranchesFromApi(date?: string): Promise<{
   const data = await getJson<{ source: DataSource; businessDate?: string; branches: unknown[] }>(
     `/api/v2/branch-tracks${qs({ date })}`
   );
-  if (data?.source !== "unity_catalog" || !Array.isArray(data.branches)) return null;
+  if ((data?.source !== "unity_catalog" && !(USE_MOCK_DATA && data?.source === "mock")) || !Array.isArray(data.branches)) return null;
   return { source: data.source, businessDate: data.businessDate ?? "", branches: data.branches };
 }
 
@@ -71,7 +72,7 @@ export async function fetchRoutesFromApi(planType?: string, date?: string): Prom
   const data = await getJson<{ source: DataSource; businessDate?: string; routes: unknown[] }>(
     `/api/v2/route-executions${qs({ plan_type: planType, date })}`
   );
-  if (data?.source !== "unity_catalog" || !Array.isArray(data.routes)) return null;
+  if ((data?.source !== "unity_catalog" && !(USE_MOCK_DATA && data?.source === "mock")) || !Array.isArray(data.routes)) return null;
   return { source: data.source, businessDate: data.businessDate ?? "", routes: data.routes };
 }
 
@@ -80,14 +81,14 @@ export async function fetchReportDates(): Promise<{ dates: string[] } | null> {
   return getJson("/api/v2/reports/available-dates");
 }
 
-/** Fetch the chosen report date explicitly; never substitute mock or latest data. */
+/** Fetch the chosen report date explicitly; never substitute another date; demo rows are accepted only in explicit mock mode. */
 export async function fetchReportRoutes(date: string): Promise<RouteExecution[] | null> {
   const data = await getJson<{
     source: DataSource;
     businessDate?: string;
     routes: RouteExecution[];
   }>(`/api/v2/route-executions${qs({ plan_type: "OPTIMIZED", date })}`);
-  if (data?.source !== "unity_catalog" || data.businessDate !== date) return null;
+  if ((data?.source !== "unity_catalog" && !(USE_MOCK_DATA && data?.source === "mock")) || data.businessDate !== date) return null;
   return data.routes ?? null;
 }
 

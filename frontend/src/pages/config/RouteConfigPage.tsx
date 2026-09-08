@@ -1,3 +1,4 @@
+import { apiFetch, USE_MOCK_DATA } from "@/api/client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Settings, Truck, Clock, DollarSign, Gauge, UtensilsCrossed, Save, Loader2 } from "lucide-react";
 import Skeleton from "@/components/Skeleton";
@@ -57,8 +58,8 @@ export default function RouteConfigPage() {
     (async () => {
       try {
         const [fRes, pRes] = await Promise.all([
-          fetch(`${API}/fleet`).then((r) => r.json()),
-          fetch(`${API}/route-params`).then((r) => r.json()),
+          apiFetch(`${API}/fleet`).then((r) => r.json()),
+          apiFetch(`${API}/route-params`).then((r) => r.json()),
         ]);
         if (fRes.error) setLoadError((prev) => (prev ? prev + "; " : "") + `Fleet: ${fRes.error}`);
         if (pRes.error) setLoadError((prev) => (prev ? prev + "; " : "") + `Params: ${pRes.error}`);
@@ -112,10 +113,10 @@ export default function RouteConfigPage() {
   const saveAll = useCallback(async () => {
     setSaving(true);
     try {
-      const promises: Promise<unknown>[] = [];
+      const promises: Promise<Response>[] = [];
       for (const [truckId, isAvailable] of Object.entries(truckChanges)) {
         promises.push(
-          fetch(`${API}/fleet/availability`, {
+          apiFetch(`${API}/fleet/availability`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ truckId, isAvailable }),
@@ -124,21 +125,22 @@ export default function RouteConfigPage() {
       }
       for (const [parameter, value] of Object.entries(paramChanges)) {
         promises.push(
-          fetch(`${API}/route-params`, {
+          apiFetch(`${API}/route-params`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ parameter, value }),
           })
         );
       }
-      await Promise.all(promises);
+      const responses = await Promise.all(promises);
+      if (responses.some((response) => !response.ok)) throw new Error("Save failed");
       // What we just wrote is the new server state, so it becomes the baseline.
       savedTrucks.current = { ...savedTrucks.current, ...truckChanges };
       savedParams.current = { ...savedParams.current, ...paramChanges };
       const saved = Object.keys(truckChanges).length + Object.keys(paramChanges).length;
       setTruckChanges({});
       setParamChanges({});
-      setToast(`Saved ${saved} changes`);
+      setToast(`Saved ${saved} changes${USE_MOCK_DATA ? " in this browser" : ""}`);
       setTimeout(() => setToast(null), 3000);
     } catch (e) {
       setToast("Save failed — please retry");
@@ -166,7 +168,7 @@ export default function RouteConfigPage() {
           <Settings size={22} color={COLOR.accent} />
           <h1 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>Route Configuration</h1>
           <span style={{ color: "var(--muted)", fontSize: 12 }}>
-            Adjust fleet availability &amp; optimization parameters
+            {USE_MOCK_DATA ? "Demo settings are saved in this browser; historical demo plans stay fixed." : "Adjust fleet availability & optimization parameters"}
           </span>
         </div>
         <button

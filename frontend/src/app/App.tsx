@@ -1,3 +1,4 @@
+import { USE_MOCK_DATA } from "@/api/client";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { Sun, Moon, PanelLeftClose, PanelLeftOpen } from "lucide-react";
@@ -33,7 +34,7 @@ export default function App() {
   const [machineBusinessDate, setMachineBusinessDate] = useState<string>("");
   const [ucBranchTracks, setUcBranchTracks] = useState<BranchTrack[] | null>(null);
   const [ucRoutes, setUcRoutes] = useState<RouteExecution[] | null>(null);
-  const [dataSourceLabel, setDataSourceLabel] = useState("Live · loading");
+  const [dataSourceLabel, setDataSourceLabel] = useState(USE_MOCK_DATA ? "Mock · frontend only" : "Live · loading");
   const [fetchLoading, setDataLoading] = useState(true);
   const [completedRequest, setCompletedRequest] = useState("");
   // "" = latest; the backend resolves MAX(business_date) when no date is sent.
@@ -127,7 +128,9 @@ export default function App() {
         }));
       }
 
-      if (health?.useUnityCatalog && (m?.machines?.length || b?.branches?.length || r?.routes?.length)) {
+      if (USE_MOCK_DATA) {
+        setDataSourceLabel("Mock ? frontend only");
+      } else if (health?.useUnityCatalog && (m?.machines?.length || b?.branches?.length || r?.routes?.length)) {
         const cat = health.catalog?.split(".").pop() ?? health.catalog ?? "UC";
         setDataSourceLabel(`UC · ${cat}.${health.schema ?? "app"}`);
       } else {

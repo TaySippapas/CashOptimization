@@ -172,6 +172,7 @@
 
 .eo-kpi-delta {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 6px;
   margin-top: 6px;
@@ -181,6 +182,10 @@
 .eo-kpi-delta .good {
   color: #22c55e;
   font-weight: 600;
+}
+
+.eo-kpi-delta .neutral {
+  color: var(--muted);
 }
 
 .eo-kpi-delta .bad {

@@ -6,6 +6,8 @@ The API is `GET /api/v2/trends/{branches|machines|routes}?period=week&end=2026-0
 
 ## Aggregation rules
 
+The KPI cards on Branches, Machines and Route Tracking have a separate daily comparison: the selected (or dataset latest) date versus exactly seven days earlier. This is a day-to-day comparison, not a seven-day total. Machine type filters apply to both dates. Missing historical snapshots remain unavailable; zero or negative baselines do not produce relative percentage changes. Rate comparisons use percentage points. These replace the old hardcoded Branches badges.
+
 - Cash positions: one row per entity and planning date, latest `updated_at`. Forecast deposits, withdrawals and closing balances come from position facts for both branches and machines.
 - Actual flows: filter `value_type = 'ACTUAL'`, select the latest snapshot on or before the selected end date for each entity and `series_date`, breaking ties by `updated_at`. Aggregate by `series_date`. Repeated overlapping snapshots are never added together. Selecting an earlier end date excludes subsequent snapshot corrections. Forecast rows in flow facts are not used.
 - Denominations: latest row per entity, planning date and denomination. Balances use actual THB amounts from the previous day; mix is the share of those amounts, not note counts or an average of stored percentages. Missing denominations or a different entity count from positions make denomination totals unavailable.

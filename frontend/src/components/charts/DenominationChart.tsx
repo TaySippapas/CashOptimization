@@ -10,8 +10,8 @@ import {
   XAxis,
   YAxis,
   ReferenceLine,
-  LabelList,
   Sector,
+  Rectangle,
 } from "recharts";
 import type { Denomination } from "@/types";
 import { COLOR } from "@/utils/colors";
@@ -27,7 +27,7 @@ function toRows(d: Denomination) {
   ];
 }
 
-/** Hover highlight: dark/black band on the active slice. */
+/** Enlarge the active slice while retaining its denomination color. */
 function ActiveDonutSlice({
   cx,
   cy,
@@ -35,6 +35,7 @@ function ActiveDonutSlice({
   outerRadius,
   startAngle,
   endAngle,
+  fill,
 }: {
   cx?: number;
   cy?: number;
@@ -42,18 +43,18 @@ function ActiveDonutSlice({
   outerRadius?: number;
   startAngle?: number;
   endAngle?: number;
+  fill?: string;
 }) {
   return (
     <Sector
       cx={cx}
       cy={cy}
       innerRadius={innerRadius}
-      outerRadius={(outerRadius ?? 0) + 6}
+      outerRadius={(outerRadius ?? 0) + 10}
       startAngle={startAngle}
       endAngle={endAngle}
-      fill="#0a0a0a"
-      stroke="#e2e8f0"
-      strokeWidth={1.5}
+      fill={fill}
+      stroke="none"
     />
   );
 }
@@ -120,13 +121,6 @@ export function DenominationDonut({ data, height = "100%" }: { data: Denominatio
             {rows.map((_, i) => (
               <Cell key={i} fill={DENOM_COLORS[i]} />
             ))}
-            <LabelList
-              dataKey="value"
-              position="outside"
-              fill="var(--muted)"
-              fontSize={10}
-              formatter={(v: number) => v.toLocaleString()}
-            />
           </Pie>
           <Tooltip
             contentStyle={{
@@ -188,29 +182,35 @@ function GapLabel(props: { x?: number; y?: number; width?: number; height?: numb
   );
 }
 
-function GapTooltip({
+function DenominationBarTooltip({
   active,
-  payload,
-  label,
+  segment,
 }: {
   active?: boolean;
-  payload?: Array<{ value?: number }>;
-  label?: string;
+  segment?: { name: string; key: "actual" | "plan"; amount: number };
 }) {
-  if (!active || !payload?.length) return null;
-  const value = Number(payload[0].value ?? 0);
+  if (!active || !segment) return null;
+  const isActual = segment.key === "actual";
   return (
     <div className="gap-tooltip">
-      <div className="gap-tooltip-label">{label}</div>
-      <div className="gap-tooltip-value">
-        Gap: {value < 0 ? "−" : "+"}฿{Math.abs(value).toLocaleString()}
+      <div className="gap-tooltip-label">{segment.name} · {isActual ? "Actual (d-1)" : "Delivery Plan (d)"}</div>
+      <div className="gap-tooltip-value" style={{ color: isActual ? COLOR.accent : COLOR.amber, fontSize: 18 }}>
+        ฿{segment.amount.toLocaleString()}
       </div>
     </div>
   );
 }
 
+/** Grow vertically only, so the segment's cash amount stays true to the axis. */
+function ActiveDenominationBar({ x = 0, y = 0, width = 0, height = 0, fill }: {
+  x?: number; y?: number; width?: number; height?: number; fill?: string;
+}) {
+  return <Rectangle x={x} y={y - 3} width={width} height={height + 6} fill={fill} stroke="none" radius={3} />;
+}
+
 /** Stacked bar: Actual vault (d-1) + Delivery Plan (d) per denomination. */
 export function DenominationGap({ data, height = 180 }: { data: Record<string, number>; height?: number }) {
+  const [hovered, setHovered] = useState<{ key: "actual" | "plan"; index: number } | null>(null);
   const d = data as Record<string, number>;
   const rows = [
     { name: "฿1000", actual: d.actual_b1000 ?? 0, plan: d.b1000 ?? 0 },
@@ -218,6 +218,10 @@ export function DenominationGap({ data, height = 180 }: { data: Record<string, n
     { name: "฿100", actual: d.actual_b100 ?? 0, plan: d.b100 ?? 0 },
     { name: "฿50", actual: d.actual_b50 ?? 0, plan: d.b50 ?? 0 },
   ];
+  // Stacked tooltip payloads can retain the first series. The hovered bar is
+  // authoritative for both the amount and color, including when moving within a row.
+  const hoveredRow = hovered ? rows[hovered.index] : undefined;
+  const segment = hovered && hoveredRow ? { name: hoveredRow.name, key: hovered.key, amount: hoveredRow[hovered.key] } : undefined;
 
   return (
     <ResponsiveContainer width="100%" height={height}>
@@ -236,22 +240,13 @@ export function DenominationGap({ data, height = 180 }: { data: Record<string, n
           tickLine={false}
           width={52}
         />
-        <Tooltip
-          contentStyle={{
-            background: "var(--popup-bg, var(--panel))",
-            border: "1px solid var(--border)",
-            borderRadius: 8,
-            fontSize: 12,
-            color: "var(--text)",
-            boxShadow: "0 8px 24px rgba(0, 0, 0, 0.2)",
-          }}
-          formatter={(v: number, name: string) => [
-            `฿${v.toLocaleString()}`,
-            name === "actual" ? "Actual (d-1)" : "Delivery Plan (d)",
-          ]}
-        />
-        <Bar dataKey="actual" stackId="denom" fill={COLOR.accent} barSize={20} radius={[0, 0, 0, 0]} name="actual" />
-        <Bar dataKey="plan" stackId="denom" fill={COLOR.amber} barSize={20} radius={[0, 4, 4, 0]} name="plan" />
+        <Tooltip cursor={false} shared={false} content={<DenominationBarTooltip segment={segment} />} />
+        <Bar dataKey="actual" stackId="denom" fill={COLOR.accent} barSize={20} radius={[0, 0, 0, 0]} name="actual"
+          activeBar={<ActiveDenominationBar />} activeIndex={hovered?.key === "actual" ? hovered.index : -1}
+          onMouseEnter={(_, index) => setHovered({ key: "actual", index })} onMouseLeave={() => setHovered(null)} />
+        <Bar dataKey="plan" stackId="denom" fill={COLOR.amber} barSize={20} radius={[0, 4, 4, 0]} name="plan"
+          activeBar={<ActiveDenominationBar />} activeIndex={hovered?.key === "plan" ? hovered.index : -1}
+          onMouseEnter={(_, index) => setHovered({ key: "plan", index })} onMouseLeave={() => setHovered(null)} />
       </BarChart>
     </ResponsiveContainer>
   );

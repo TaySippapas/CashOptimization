@@ -4,7 +4,7 @@
   padding: 18px;
   display: flex;
   flex-direction: column;
-  gap: 22px;
+  gap: 18px;
   position: relative;
 }
 
@@ -37,7 +37,7 @@
 
 .reports-predefined-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: minmax(0, 640px);
   gap: 16px;
 }
 
@@ -45,11 +45,10 @@
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 14px;
-  padding: 20px 18px 16px;
+  padding: 20px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  min-height: 168px;
+  gap: 10px;
 }
 
 .reports-card-icon {
@@ -58,17 +57,16 @@
 }
 
 .reports-card h3 {
-  font-size: 14px;
+  font-size: 18px;
   font-weight: 700;
   margin: 0;
   color: var(--text);
 }
 
 .reports-card p {
-  font-size: 12.5px;
+  font-size: 14px;
   color: var(--muted);
   margin: 0;
-  flex: 1;
   line-height: 1.45;
 }
 
@@ -79,22 +77,56 @@
   padding: 7px 14px;
 }
 
+/* .panel clips overflow for its rounded corners, so the date picker's popup
+   calendar (~300px, absolutely positioned) would be cut off at the panel's
+   bottom edge. The box always reserves room for it: the trigger bottom sits
+   ~110px below the panel top, +6px offset +300px calendar +20px padding. */
 .reports-custom {
-  padding: 20px 22px 24px;
+  padding: 20px;
+  min-height: 460px;
 }
 
 .reports-custom-body {
   display: grid;
-  grid-template-columns: 1fr 220px;
-  gap: 28px;
+  grid-template-columns: minmax(0, 1fr) 180px;
+  gap: 24px;
   align-items: center;
 }
 
 .reports-custom-fields {
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px 24px;
+  align-items: start;
 }
+
+.reports-custom-fields .reports-field { min-width: 0; }
+.reports-custom-fields .reports-field > label { margin-bottom: 8px; }
+.reports-preview-field,
+.reports-download-field { grid-column: 1 / -1; }
+.reports-custom-fields .reports-format-btn,
+.reports-custom-fields .date-picker-trigger,
+.reports-custom-fields .reports-date { min-height: 38px; }
+.reports-download-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.reports-download-list .reports-gen-btn {
+  width: 100%;
+  align-self: stretch;
+  min-height: 58px;
+  padding: 10px 14px;
+  justify-content: flex-start;
+  gap: 12px;
+  text-align: left;
+  white-space: normal;
+  margin-top: 0;
+}
+.reports-download-list .reports-gen-btn > svg { flex-shrink: 0; }
+.reports-download-copy { display: flex; flex-direction: column; gap: 3px; }
+.reports-download-copy strong { font-size: 13px; }
+.reports-download-copy > span { font-size: 12px; font-weight: 400; opacity: .8; line-height: 1.5; }
 
 .reports-field label {
   display: block;
@@ -202,16 +234,13 @@
 }
 
 .reports-illustration {
-  width: 200px;
+  width: 160px;
+  max-width: 100%;
   height: auto;
   opacity: 0.92;
 }
 
 @media (max-width: 1100px) {
-  .reports-predefined-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
   .reports-custom-body {
     grid-template-columns: 1fr;
   }
@@ -221,8 +250,19 @@
   }
 }
 
+@media (max-width: 700px) {
+  .reports-custom-fields,
+  .reports-download-list { grid-template-columns: minmax(0, 1fr); }
+
+  /* Stacked fields push the date trigger a row lower, so the calendar needs
+     more room below it. */
+  .reports-custom { min-height: 540px; }
+}
+
 @media (max-width: 560px) {
   .reports-predefined-grid {
     grid-template-columns: 1fr;
   }
+  .reports-card, .reports-custom { padding: 16px; }
+  .reports-custom-fields { gap: 18px; }
 }

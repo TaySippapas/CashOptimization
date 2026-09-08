@@ -1,5 +1,25 @@
 
 /* ---------- Tracking pages (Machines / Branches) ---------- */
+.fleet-overview-row { cursor: pointer; }
+.fleet-overview-row > td { transition: background-color 140ms ease, box-shadow 140ms ease; }
+.fleet-overview-row:hover > td,
+.fleet-overview-row:focus-within > td { background: color-mix(in srgb, var(--accent) 9%, var(--panel)); }
+.fleet-overview-row:hover > td:first-child,
+.fleet-overview-row:focus-within > td:first-child { box-shadow: inset 3px 0 var(--accent); }
+.fleet-overview-row.is-selected > td { background: color-mix(in srgb, var(--accent) 12%, var(--panel)); }
+.fleet-overview-row.is-selected > td:first-child { box-shadow: inset 3px 0 var(--accent); }
+.fleet-overview-row.is-selected:hover > td,
+.fleet-overview-row.is-selected:focus-within > td { background: color-mix(in srgb, var(--accent) 18%, var(--panel)); }
+.fleet-action-heading { color: var(--muted); font-size: 10px; }
+.fleet-detail-link { display: inline-flex; align-items: center; gap: 6px; padding: 6px 8px; font-size: 10px; white-space: nowrap; }
+.fleet-detail-label { opacity: 0; transition: opacity 140ms ease; }
+.fleet-overview-row:hover .fleet-detail-label,
+.fleet-overview-row:focus-within .fleet-detail-label { opacity: 1; }
+.fleet-overview-row:hover .fleet-detail-link,
+.fleet-overview-row:focus-within .fleet-detail-link { color: var(--accent); border-color: var(--accent); }
+@media (hover: none) { .fleet-detail-label { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .fleet-overview-row > td, .fleet-detail-label { transition: none; } }
+
 .track-page {
   padding: 18px;
   display: flex;

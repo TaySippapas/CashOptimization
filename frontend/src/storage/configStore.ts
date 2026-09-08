@@ -1,6 +1,9 @@
 import type { AppConfig, BranchInput } from "@/types";
 import { DEFAULT_CONFIG, DEFAULT_PARAMS } from "@/mocks/mockData";
-import { CONFIG_KEY as STORAGE_KEY } from "./keys";
+import { CONFIG_KEY } from "./keys";
+import { USE_MOCK_DATA } from "@/api/client";
+
+const STORAGE_KEY = USE_MOCK_DATA ? `${CONFIG_KEY}:mock` : CONFIG_KEY;
 
 export function loadConfig(): AppConfig {
   try {

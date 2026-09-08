@@ -82,16 +82,16 @@ export default function ReportsPage() {
         <div className="reports-predefined-grid">
           {dataLoading ? (
             <div className="reports-card">
-              <Skeleton width={22} height={22} radius={6} />
+              <Skeleton width={26} height={26} radius={6} />
               <Skeleton width="70%" height={14} style={{ marginTop: 10 }} />
               <Skeleton width="90%" height={12} style={{ marginTop: 6 }} />
             </div>
           ) : (
             <div className="reports-card" style={{ borderColor: "var(--accent, #38bdf8)", borderWidth: 2 }}>
-              <FileText size={22} className="reports-card-icon" />
+              <FileText size={26} className="reports-card-icon" />
               <h3>{report.title}</h3>
               <p>{report.description}</p>
-              <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 4 }}>
+              <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>
                 {report.outputs.length} download{report.outputs.length > 1 ? "s" : ""} available
               </div>
             </div>
@@ -150,7 +150,7 @@ export default function ReportsPage() {
 
             {/* Preview stats */}
             {!dataLoading && execs.length > 0 && (
-              <div className="reports-field">
+              <div className="reports-field reports-preview-field">
                 <label>Preview</label>
                 <div style={{
                   display: "flex", gap: 16, flexWrap: "wrap",
@@ -175,9 +175,9 @@ export default function ReportsPage() {
             )}
 
             {/* Download buttons */}
-            <div className="reports-field">
+            <div className="reports-field reports-download-field">
               <label>Download</label>
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <div className="reports-download-list">
                 {report.outputs.map((o) => (
                   <button
                     key={o.id}
@@ -185,11 +185,12 @@ export default function ReportsPage() {
                     className="btn primary reports-gen-btn"
                     disabled={generating === o.id || dataLoading || !validDate || loadError || !execs.length}
                     onClick={() => run(o.id)}
-                    style={{ justifyContent: "flex-start", gap: 8 }}
                   >
-                    <Download size={14} />
-                    {generating === o.id ? "Generating…" : `${o.title} (CSV)`}
-                    <span style={{ fontSize: 10, opacity: 0.7, marginLeft: "auto" }}>{o.description}</span>
+                    <Download size={18} />
+                    <span className="reports-download-copy">
+                      <strong>{generating === o.id ? "Generating…" : `${o.title} (CSV)`}</strong>
+                      <span>{o.description}</span>
+                    </span>
                   </button>
                 ))}
               </div>

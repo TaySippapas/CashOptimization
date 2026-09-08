@@ -19,7 +19,7 @@ export function SkeletonKpiCard() {
 interface Delta {
   text: string;
   dir: "up" | "down" | "flat";
-  good: boolean;
+  good?: boolean;
 }
 
 export default function KpiCard({
@@ -37,7 +37,7 @@ export default function KpiCard({
   label: string;
   value: string;
   delta?: Delta;
-  /** Free-form caption shown when there's no discrete up/down delta to report. Ignored if `delta` is set. */
+  /** Free-form caption. Renders under the delta when both are present. */
   sub?: ReactNode;
   spark?: number[];
   tone?: "green" | "amber" | "danger" | "cash";
@@ -57,16 +57,15 @@ export default function KpiCard({
         {qualifier && <span className="eo-kpi-qualifier">{qualifier}</span>}
       </div>
       <div className="eo-kpi-value">{value}</div>
-      {delta ? (
+      {delta && (
         <div className="eo-kpi-delta">
-          <span className={delta.good ? "good" : "bad"}>
+          <span className={delta.good === undefined ? "neutral" : delta.good ? "good" : "bad"}>
             <TrendIcon dir={delta.dir} /> {delta.text}
           </span>
           <span className="eo-kpi-vs">{compareLabel}</span>
         </div>
-      ) : (
-        sub && <div className="eo-kpi-sub">{sub}</div>
       )}
+      {sub && <div className="eo-kpi-sub">{sub}</div>}
     </div>
   );
 }

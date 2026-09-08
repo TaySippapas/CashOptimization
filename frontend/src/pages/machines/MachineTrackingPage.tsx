@@ -10,6 +10,7 @@ import TrendsLink from "@/components/TrendsLink";
 import TrendChart from "@/components/charts/TrendChart";
 import { DenominationDonut } from "@/components/charts/DenominationChart";
 import { useAppData } from "@/hooks/useAppData";
+import { useWeeklyComparison } from "@/hooks/useWeeklyComparison";
 import KpiCard, { SkeletonKpiCard } from "@/components/KpiCard";
 import StatusDot from "@/components/StatusDot";
 import Skeleton from "@/components/Skeleton";
@@ -50,6 +51,10 @@ export default function MachineTrackingPage() {
   const [sortDir, setSortDir] = useState<SortDir>("asc");
 
   const summary = useMemo(() => summarizeMachines(machines), [machines]);
+  const weekly = useWeeklyComparison("machines");
+  const previous = useMemo(() => weekly.rows ? summarizeMachines(typeFilter.length === 0 ? weekly.rows : weekly.rows.filter((m) => typeFilter.includes(m.machineType))) : null, [weekly.rows, typeFilter]);
+  const compare = (key: "total" | "pickup" | "deliver" | "healthy" | "noAction" | "emergency", better?: "higher" | "lower") =>
+    weekly.compare(allMachines.length ? summary[key] : null, previous?.[key] ?? null, better);
   const isAll = selectedId === ALL_MACHINES;
   const selected = machines.find((m) => m.id === selectedId) ?? machines[0];
 
@@ -163,33 +168,39 @@ export default function MachineTrackingPage() {
               icon={<Cpu size={18} color={COLOR.accent} />}
               label="Total machines"
               value={String(summary.total)}
+              {...compare("total")}
             />
             <KpiCard
               icon={<PackageOpen size={18} color={COLOR.sky} />}
               label="Swap (Near Full)"
               value={String(summary.pickup)}
+              {...compare("pickup", "lower")}
               tone="amber"
             />
             <KpiCard
               icon={<PackageOpen size={18} color={COLOR.amber} />}
               label="Swap (Near Empty)"
               value={String(summary.deliver)}
+              {...compare("deliver", "lower")}
             />
             <KpiCard
               icon={<ShieldCheck size={18} color={COLOR.green} />}
               label="Healthy"
               value={String(summary.healthy)}
+              {...compare("healthy", "higher")}
               tone="green"
             />
             <KpiCard
               icon={<MinusCircle size={18} color={COLOR.slate} />}
               label="No Action"
               value={String(summary.noAction)}
+              {...compare("noAction", "higher")}
             />
             <KpiCard
               icon={<AlertTriangle size={18} color={COLOR.red} />}
               label="Emergency"
               value={String(summary.emergency)}
+              {...compare("emergency", "lower")}
               tone="danger"
             />
           </>
