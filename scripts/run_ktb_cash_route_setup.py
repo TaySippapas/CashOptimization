@@ -21,6 +21,14 @@ def main() -> None:
     parser.add_argument("--dry-run", action="store_true", help="Print SQL without connecting or executing")
     args = parser.parse_args()
     raw = args.sql_path.read_text(encoding="utf-8")
+    # The scripts name the catalog/schema once, as ${catalog}/${schema}, and
+    # take the real values from config.yaml — the same source the app uses.
+    # Hardcoding them would both pin the scripts to one workspace and put a
+    # workspace identifier into version control.
+    from server.settings import get_settings
+
+    settings = get_settings()
+    raw = raw.replace("${catalog}", settings.catalog).replace("${schema}", settings.schema)
     # Repository scripts use semicolon-delimited statements, without embedded
     # semicolons in string literals or procedural blocks.
     code = "\n".join(line for line in raw.splitlines() if not line.lstrip().startswith("--"))

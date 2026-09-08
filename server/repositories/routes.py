@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from server.mappers.common import _ROUTE_STATUS_UI, _int, _num
+from server.mappers.common import _ROUTE_STATUS_UI, _date_str, _int, _num
 from server.repositories.common import _resolve_route_date, _t
 from server.warehouse import cached, connection, query
 
@@ -25,11 +25,29 @@ _ROUTE_COLORS = [
 ]
 
 
+@cached
+def fetch_report_dates() -> list[str]:
+    """Dates with optimized route summaries, the source for PLAN reports."""
+    with connection() as conn:
+        with conn.cursor() as cur:
+            rows = query(
+                cur,
+                f"""
+                SELECT DISTINCT business_date
+                FROM {_t('fact_route_summary')}
+                WHERE business_date IS NOT NULL AND route_plan_type = ?
+                ORDER BY business_date
+                """,
+                ["OPTIMIZED"],
+            )
+    return [_date_str(row["business_date"]) for row in rows]
+
+
 def fetch_routes(business_date: str | None = None, plan_type: str | None = None) -> list[dict[str, Any]]:
     """Raw route data for debugging/admin. Returns summary + stops joined."""
     with connection() as conn:
         with conn.cursor() as cur:
-            d = _resolve_route_date(cur, business_date)
+            d = _resolve_route_date(cur, business_date, plan_type)
             routes = query(
                 cur,
                 f"""
@@ -75,7 +93,7 @@ def fetch_route_executions(
     """
     with connection() as conn:
         with conn.cursor() as cur:
-            d = _resolve_route_date(cur, business_date)
+            d = _resolve_route_date(cur, business_date, plan_type)
             if not d:
                 return "", []
 

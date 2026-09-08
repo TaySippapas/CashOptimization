@@ -4,9 +4,9 @@
 -- CREATE TABLE IF NOT EXISTS does not upgrade existing tables.
 -- Inspect and edit the catalog/schema below for your target before running.
 
-CREATE SCHEMA IF NOT EXISTS mdp_dev_dit.default;
-USE CATALOG mdp_dev_dit;
-USE SCHEMA default;
+CREATE SCHEMA IF NOT EXISTS ${catalog}.${schema};
+USE CATALOG ${catalog};
+USE SCHEMA ${schema};
 
 -- ══ Branch domain ═════════════════════════════════════════════════════════
 

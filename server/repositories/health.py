@@ -26,19 +26,30 @@ def health() -> dict[str, Any]:
     }
 
 
-def fetch_date_range() -> dict[str, Any]:
-    """Earliest and latest business_date available, for bounding the date picker."""
+@cached
+def fetch_date_range(dataset: str = "branches") -> dict[str, Any]:
+    """Exact available days for one tracking dataset, including gaps."""
+    table = {
+        "branches": "fact_cash_position",
+        "machines": "fact_machine_position",
+        "routes": "fact_route_summary",
+    }[dataset]
+    plan_filter = "AND route_plan_type = ?" if dataset == "routes" else ""
     with connection() as conn:
         with conn.cursor() as cur:
             rows = query(
                 cur,
                 f"""
-                SELECT MIN(business_date) AS min_d, MAX(business_date) AS max_d
-                FROM {_t('fact_cash_position')}
+                SELECT DISTINCT business_date
+                FROM {_t(table)}
+                WHERE business_date IS NOT NULL {plan_filter}
+                ORDER BY business_date
                 """,
+                ["OPTIMIZED"] if dataset == "routes" else None,
             )
-    r = rows[0] if rows else {}
+    dates = [_date_str(row["business_date"]) for row in rows]
     return {
-        "minDate": _date_str(r.get("min_d")) or None,
-        "maxDate": _date_str(r.get("max_d")) or None,
+        "dates": dates,
+        "minDate": dates[0] if dates else None,
+        "maxDate": dates[-1] if dates else None,
     }

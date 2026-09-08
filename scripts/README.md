@@ -9,6 +9,7 @@ inside the SQL file determine where statements execute.
 | --- | --- |
 | `sql/schema/v2_schema_setup.sql` | Baseline schema for the current V2 backend |
 | `sql/migrations/v2_add_cost_of_fund.sql` | Add/backfill cost-of-fund fields missing from the baseline |
+| `sql/migrations/v2_align_branch_flow_forecasts.sql` | Align same-day branch flow forecasts with position snapshots; preserve actual history |
 | `sql/seeds/v2_seed_mock_data.sql` | Deterministic demo data; truncates target tables |
 | `legacy/` | Older flat-table, view, notebook, and seven-table pipelines |
 

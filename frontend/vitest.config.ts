@@ -2,8 +2,7 @@ import { fileURLToPath, URL } from "node:url";
 import { defineConfig } from "vitest/config";
 
 // Separate from vite.config.ts so the dev-server config (proxy, port) stays
-// unaffected. Only src/domain is covered: those are pure functions, and the
-// numbers they produce are what the dashboard shows.
+// unaffected. Tests cover domain calculations, API contracts and server-rendered UI.
 export default defineConfig({
   resolve: {
     alias: {
@@ -12,6 +11,6 @@ export default defineConfig({
   },
   test: {
     environment: "node",
-    include: ["src/**/*.test.ts"],
+    include: ["src/**/*.test.{ts,tsx}"],
   },
 });

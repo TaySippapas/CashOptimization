@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   ComposedChart,
   Line,
@@ -78,15 +79,41 @@ export default function TrendChart({
   height = 200,
   splitActualPredicted = false,
   predictedDays = 3,
+  selectableLegend = false,
 }: {
   data: DayFlow[];
   height?: number;
   splitActualPredicted?: boolean;
   predictedDays?: number;
+  selectableLegend?: boolean;
 }) {
+  const [hiddenSeries, setHiddenSeries] = useState<string[]>([]);
   const chartData: TrendRow[] = splitActualPredicted ? enrichTrendData(data, predictedDays) : data;
+  const legendEntries = SERIES_KEYS.flatMap((key) => {
+    const { color, name } = SERIES[key];
+    return splitActualPredicted
+      ? [
+          { key: `actual${cap(key)}`, name: `Actual ${name}`, color, dashed: false },
+          { key: `predicted${cap(key)}`, name: `Predicted ${name}`, color, dashed: true },
+        ]
+      : [{ key, name, color, dashed: true }];
+  });
+  const isHidden = (key: string) => selectableLegend && hiddenSeries.includes(key);
 
   return (
+    <>
+    {selectableLegend && <div className="cash-analysis-legend" role="group" aria-label="Cash analysis lines">
+      <span className="cash-analysis-legend-hint">Show / hide lines</span>
+      <button type="button" aria-pressed={legendEntries.every((entry) => !isHidden(entry.key))}
+        title={legendEntries.every((entry) => !isHidden(entry.key)) ? "Hide all lines" : "Show all lines"}
+        onClick={() => setHiddenSeries((current) => legendEntries.every((entry) => !current.includes(entry.key)) ? legendEntries.map((entry) => entry.key) : [])}>All lines</button>
+      {legendEntries.map((entry) => <button key={entry.key} type="button" aria-pressed={!isHidden(entry.key)}
+        title={`${isHidden(entry.key) ? "Show" : "Hide"} ${entry.name}`}
+        onClick={() => setHiddenSeries((current) => current.includes(entry.key) ? current.filter((key) => key !== entry.key) : [...current, entry.key])}>
+        <span aria-hidden="true" className="cash-analysis-legend-swatch" style={{ borderColor: entry.color, borderTopStyle: entry.dashed ? "dashed" : "solid" }} />
+        {entry.name}
+      </button>)}
+    </div>}
     <ResponsiveContainer width="100%" height={height}>
       <ComposedChart data={chartData} margin={{ top: 10, right: 14, left: 4, bottom: 0 }}>
         <CartesianGrid stroke="var(--border-soft, #26314a)" vertical={false} />
@@ -118,12 +145,12 @@ export default function TrendChart({
           labelStyle={{ color: "var(--muted)", marginBottom: 4 }}
           formatter={(v: number, n: string) => [`฿${Number(v).toLocaleString()}`, n]}
         />
-        <Legend
+        {!selectableLegend && <Legend
           wrapperStyle={{ fontSize: 10, color: "var(--muted)", paddingTop: 4, lineHeight: "16px" }}
           height={splitActualPredicted ? 38 : 24}
           iconType="plainline"
           formatter={(value) => <span style={{ color: "var(--muted)" }}>{value}</span>}
-        />
+        />}
         <ReferenceLine y={0} stroke="var(--border)" strokeDasharray="4 4" />
 
         {splitActualPredicted
@@ -136,6 +163,7 @@ export default function TrendChart({
                   key={`actual-${key}`}
                   type="linear"
                   dataKey={`actual${cap(key)}`}
+                  hide={isHidden(`actual${cap(key)}`)}
                   name={`Actual ${cap(key === "withdraw" ? "withdrawal" : key)}`}
                   stroke={color}
                   strokeWidth={width}
@@ -147,6 +175,7 @@ export default function TrendChart({
                   key={`predicted-${key}`}
                   type="linear"
                   dataKey={`predicted${cap(key)}`}
+                  hide={isHidden(`predicted${cap(key)}`)}
                   name={`Predicted ${cap(key === "withdraw" ? "withdrawal" : key)}`}
                   stroke={color}
                   strokeWidth={width}
@@ -164,6 +193,7 @@ export default function TrendChart({
                   key={key}
                   type="linear"
                   dataKey={key}
+                  hide={isHidden(key)}
                   name={name}
                   stroke={color}
                   strokeWidth={key === "net" ? 2.5 : 2}
@@ -175,5 +205,6 @@ export default function TrendChart({
             })}
       </ComposedChart>
     </ResponsiveContainer>
+    </>
   );
 }

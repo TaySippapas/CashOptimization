@@ -119,17 +119,6 @@
   bottom: 12px;
 }
 
-.health-map .map-legend::before {
-  content: "Health status";
-  display: block;
-  font-size: 9px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: var(--muted);
-  margin-bottom: 6px;
-}
-
 .route-detail-legend {
   top: 12px;
   bottom: auto;
@@ -140,17 +129,6 @@
   backdrop-filter: blur(6px);
 }
 
-.health-map .map-legend.route-detail-legend::before {
-  content: "Map legend";
-  display: block;
-  font-size: 9px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: var(--muted);
-  margin-bottom: 6px;
-}
-
 .legend-group-label {
   font-size: 9px;
   font-weight: 700;
@@ -158,6 +136,10 @@
   letter-spacing: 0.5px;
   color: var(--muted);
   margin: 8px 0 4px;
+}
+
+.health-map .map-legend.route-detail-legend {
+  bottom: auto;
 }
 
 .legend-group-label:first-child {

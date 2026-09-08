@@ -1,0 +1,42 @@
+.cash-analysis-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 8px;
+}
+.cash-analysis-legend-hint {
+  color: var(--muted);
+  font-size: 10px;
+  margin-right: 4px;
+}
+.cash-analysis-legend button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 9px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--panel);
+  color: var(--muted);
+  font: inherit;
+  font-size: 10px;
+  cursor: pointer;
+}
+.cash-analysis-legend button:hover {
+  background: var(--panel-2);
+  color: var(--text);
+}
+.cash-analysis-legend button[aria-pressed="true"] {
+  background: var(--panel-2);
+  border-color: var(--accent);
+  color: var(--text);
+}
+.cash-analysis-legend button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.cash-analysis-legend-swatch {
+  width: 18px;
+  border-top-width: 3px;
+}

@@ -4,7 +4,7 @@ from __future__ import annotations
 from typing import Any
 
 from server.mappers.common import _bool, _date_str, _day_label, _int, _map_health, _num
-from server.repositories.common import _latest_machine_date, _resolve_date, _t, log
+from server.repositories.common import _latest_machine_date, _t, log
 from server.repositories.health import health
 from server.warehouse import cached, connection, query_many
 
@@ -22,7 +22,9 @@ def fetch_machine_tracks(business_date: str | None = None) -> tuple[str, list[di
     Returns (resolved_business_date, rows)."""
     with connection() as conn:
         with conn.cursor() as cur:
-            d = business_date or _latest_machine_date(cur) or _resolve_date(cur, business_date)
+            d = business_date or _latest_machine_date(cur)
+            if not d:
+                return "", []
 
     # Position, trend and denomination are independent — issued together.
     snaps, flows, denoms = query_many([

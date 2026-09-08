@@ -6,10 +6,12 @@ apart from the /api/* routes in app.py so the two pipelines don't collide.
 from __future__ import annotations
 
 import logging
+from datetime import date
+from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Query
 
-from server.repositories import branches, cash_flow, fleet, health, machines, overview, routes
+from server.repositories import branches, cash_flow, fleet, health, machines, overview, routes, trends
 from server.schemas.v2 import (
     Branch,
     Machine,
@@ -38,12 +40,34 @@ def get_health():
 
 
 @router.get("/date-range")
-def get_date_range():
+def get_date_range(dataset: Literal["branches", "machines", "routes"] = Query(default="branches")):
     try:
-        return {"source": "unity_catalog", **health.fetch_date_range()}
+        return {"source": "unity_catalog", **health.fetch_date_range(dataset)}
     except Exception as e:
         log.exception("v2 /date-range failed")
-        return {"source": "error", "error": str(e), "minDate": None, "maxDate": None}
+        raise HTTPException(status_code=503, detail="Unable to load available dates")
+
+
+@router.get("/reports/available-dates")
+def get_report_dates():
+    try:
+        return {"dates": routes.fetch_report_dates()}
+    except Exception:
+        log.exception("v2 /reports/available-dates failed")
+        raise HTTPException(status_code=503, detail="Unable to load report dates")
+
+
+@router.get("/trends/{dataset}")
+def get_trends(
+    dataset: Literal["branches", "machines", "routes"],
+    period: Literal["3days", "week", "month", "quarter", "year"] = "week",
+    end: date | None = None,
+):
+    try:
+        return trends.fetch_trends(dataset, period, end.isoformat() if end else None)
+    except Exception:
+        log.exception("v2 trends failed")
+        raise HTTPException(status_code=503, detail="Unable to load trends. Please retry.")
 
 
 @router.get("/branches", response_model=list[Branch])

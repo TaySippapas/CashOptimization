@@ -3,6 +3,7 @@ import type { Health } from "@/types";
 import { HEALTH_COLOR } from "@/domain/tracking";
 import { useTileUrl } from "@/hooks/useTheme";
 import { FitBounds } from "./map.utils";
+import MapLegend from "./MapLegend";
 
 export interface MapPoint {
   id: string;
@@ -58,7 +59,7 @@ export default function HealthMap({
           </CircleMarker>
         ))}
       </MapContainer>
-      <div className="map-legend">
+      <MapLegend description="Health status">
         {(Object.keys(HEALTH_COLOR) as Health[]).map((h) => (
           <div className="row" key={h}>
             <span className="dot" style={{ background: HEALTH_COLOR[h] }} /> {h}
@@ -80,7 +81,7 @@ export default function HealthMap({
             <span className="dot emergency-dot" /> Emergency
           </div>
         )}
-      </div>
+      </MapLegend>
     </div>
   );
 }

@@ -6,6 +6,7 @@ import { thb } from "@/utils/format";
 import HealthMap, { type MapPoint } from "@/components/maps/HealthMap";
 import ResizableSplit from "@/components/ResizableSplit";
 import DateFilter from "@/components/DateFilter";
+import TrendsLink from "@/components/TrendsLink";
 import TrendChart from "@/components/charts/TrendChart";
 import { DenominationDonut } from "@/components/charts/DenominationChart";
 import { useAppData } from "@/hooks/useAppData";
@@ -148,7 +149,8 @@ export default function MachineTrackingPage() {
             </option>
           ))}
         </select>
-        <DateFilter />
+        <DateFilter dataset="machines" />
+        <TrendsLink dataset="machines" />
       </div>
 
       {/* KPI cards — 6 */}
@@ -298,7 +300,7 @@ export default function MachineTrackingPage() {
             {dataLoading ? (
               <Skeleton height={220} radius={10} />
             ) : (
-              trendData.length > 0 && <TrendChart data={trendData} height={220} splitActualPredicted />
+              trendData.length > 0 && <TrendChart data={trendData} height={220} splitActualPredicted selectableLegend />
             )}
             <div className="trend-caption">Solid = Actual · Dashed = Predicted (Deposit · Withdrawal · Net)</div>
           </div>

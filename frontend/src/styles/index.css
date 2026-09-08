@@ -4,11 +4,14 @@
 @import "./pages/config.css";
 @import "./layout/body.css";
 @import "./components/dashboard.css";
+@import "./components/cash-analysis.css";
 @import "./pages/tracking.css";
 @import "./components/inputs.css";
+@import "./components/date-picker.css";
 @import "./pages/reports.css";
 @import "./pages/scenario.css";
 @import "./pages/alerts.css";
 @import "./pages/ai-performance.css";
 @import "./pages/overview.css";
 @import "./pages/machine-details.css";
+@import "./pages/trends.css";

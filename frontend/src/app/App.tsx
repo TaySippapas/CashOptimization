@@ -1,5 +1,5 @@
 import { Suspense, useEffect, useMemo, useState } from "react";
-import { NavLink, Outlet } from "react-router-dom";
+import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { Sun, Moon, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import type { AppConfig, BranchInput, BranchTrack, Machine, RouteExecution } from "@/types";
 import type { AppData } from "@/hooks/useAppData";
@@ -9,10 +9,10 @@ import { loadConfig } from "@/storage/configStore";
 import {
   fetchBranchInputsFromApi,
   fetchBranchesFromApi,
-  fetchDateRange,
   fetchHealth,
   fetchMachinesFromApi,
   fetchRoutesFromApi,
+  type TrackingDataset,
 } from "@/api/backend";
 import { THEME_KEY, NAV_COLLAPSED_KEY } from "@/storage/keys";
 import { NAV_ITEMS } from "./nav";
@@ -21,6 +21,7 @@ import PageLoader from "@/components/PageLoader";
 type Theme = "dark" | "light";
 
 export default function App() {
+  const { pathname } = useLocation();
   const [config, setConfig] = useState<AppConfig>(() => loadConfig());
   const [theme, setTheme] = useState<Theme>(
     () => (localStorage.getItem(THEME_KEY) as Theme) || "dark"
@@ -33,11 +34,26 @@ export default function App() {
   const [ucBranchTracks, setUcBranchTracks] = useState<BranchTrack[] | null>(null);
   const [ucRoutes, setUcRoutes] = useState<RouteExecution[] | null>(null);
   const [dataSourceLabel, setDataSourceLabel] = useState("Live · loading");
-  const [dataLoading, setDataLoading] = useState(true);
+  const [fetchLoading, setDataLoading] = useState(true);
+  const [completedRequest, setCompletedRequest] = useState("");
   // "" = latest; the backend resolves MAX(business_date) when no date is sent.
-  const [selectedDate, setSelectedDate] = useState<string>("");
+  const [selectedDate, setOverviewDate] = useState<string>("");
+  const [selectedDates, setSelectedDates] = useState<Record<TrackingDataset, string>>({ branches: "", machines: "", routes: "" });
+  const [businessDates, setBusinessDates] = useState<Record<TrackingDataset, string>>({ branches: "", machines: "", routes: "" });
+  const setDatasetDate = (dataset: TrackingDataset, date: string) => {
+    setSelectedDates((current) => ({ ...current, [dataset]: date }));
+  };
+  const setSelectedDate = (date: string) => {
+    setOverviewDate(date);
+  };
+  // The overview has its own cross-dataset filter; tracking pages retain their selections.
+  const isOverview = pathname === "/overview" || pathname === "/overview-v2";
+  const branchDate = isOverview ? selectedDate : selectedDates.branches;
+  const machineDate = isOverview ? selectedDate : selectedDates.machines;
+  const routeDate = isOverview ? selectedDate : selectedDates.routes;
+  const requestKey = JSON.stringify([branchDate, machineDate, routeDate]);
+  const dataLoading = fetchLoading || completedRequest !== requestKey;
   const [resolvedDate, setResolvedDate] = useState<string>("");
-  const [dateRange, setDateRange] = useState<{ minDate?: string; maxDate?: string }>();
 
   const plan = useMemo(() => buildPlanFromConfig(config), [config]);
   const generatedExecs = useMemo(
@@ -63,8 +79,10 @@ export default function App() {
     dataLoading,
     selectedDate,
     setSelectedDate,
+    selectedDates,
+    businessDates,
+    setDatasetDate,
     resolvedDate,
-    dateRange,
   };
 
   useEffect(() => {
@@ -76,40 +94,29 @@ export default function App() {
     localStorage.setItem(NAV_COLLAPSED_KEY, navCollapsed ? "1" : "0");
   }, [navCollapsed]);
 
-  // Available date range only needs fetching once — it doesn't change per pick.
-  useEffect(() => {
-    let cancelled = false;
-    fetchDateRange().then((r) => {
-      if (!cancelled && r) setDateRange({ minDate: r.minDate, maxDate: r.maxDate });
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
   useEffect(() => {
     let cancelled = false;
     setDataLoading(true);
     (async () => {
-      const date = selectedDate || undefined;
       // health used to be awaited first, serialising a round trip ahead of the
       // batch; nothing below needs it before the others start.
       const [health, m, b, bi, r] = await Promise.all([
         fetchHealth(),
-        fetchMachinesFromApi(date),
-        fetchBranchesFromApi(date),
-        fetchBranchInputsFromApi(date),
-        fetchRoutesFromApi("OPTIMIZED", date),
+        fetchMachinesFromApi(machineDate || undefined),
+        fetchBranchesFromApi(branchDate || undefined),
+        fetchBranchInputsFromApi(branchDate || undefined),
+        fetchRoutesFromApi("OPTIMIZED", routeDate || undefined),
       ]);
       if (cancelled) return;
 
       // Clear stale rows so an empty date doesn't keep showing the old day.
-      setUcMachines(m?.machines?.length ? (m.machines as Machine[]) : null);
-      setUcBranchTracks(b?.branches?.length ? (b.branches as BranchTrack[]) : null);
-      setUcRoutes(r?.routes?.length ? (r.routes as RouteExecution[]) : null);
+      setUcMachines((m?.machines ?? []) as Machine[]);
+      setUcBranchTracks((b?.branches ?? []) as BranchTrack[]);
+      setUcRoutes((r?.routes ?? []) as RouteExecution[]);
       setMachineBusinessDate(m?.businessDate ?? "");
+      setBusinessDates({ branches: b?.businessDate ?? "", machines: m?.businessDate ?? "", routes: r?.businessDate ?? "" });
 
-      const served = selectedDate || health?.businessDate || "";
+      const served = b?.businessDate ?? "";
       setResolvedDate(served);
 
       if (bi?.branches?.length) {
@@ -126,12 +133,13 @@ export default function App() {
       } else {
         setDataSourceLabel("Live · no UC data");
       }
+      setCompletedRequest(requestKey);
       setDataLoading(false);
     })();
     return () => {
       cancelled = true;
     };
-  }, [selectedDate]);
+  }, [branchDate, machineDate, routeDate, requestKey]);
 
   return (
     <div className={`app ${navCollapsed ? "nav-collapsed" : ""}`}>

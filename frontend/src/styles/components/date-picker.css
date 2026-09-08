@@ -1,0 +1,106 @@
+.date-picker-trigger {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  padding: 7px 10px;
+  font-size: 13px;
+}
+
+.available-date-picker {
+  position: relative;
+}
+
+.available-date-picker summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.available-date-picker summary::-webkit-details-marker {
+  display: none;
+}
+
+.date-calendar {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 10;
+  width: 280px;
+  max-width: calc(100vw - 80px);
+  padding: 12px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 20%);
+}
+
+.date-calendar-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.date-calendar button,
+.date-calendar select {
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  padding: 6px;
+  cursor: pointer;
+}
+
+.date-calendar-nav button {
+  display: flex;
+}
+
+.date-calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 3px;
+  text-align: center;
+  font-size: 12px;
+}
+
+.date-calendar-weekday {
+  color: var(--muted);
+  padding: 4px 0;
+}
+
+.date-calendar button:disabled,
+.date-picker-trigger:disabled {
+  color: var(--muted);
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.date-calendar button[aria-pressed="true"] {
+  border-color: var(--ktb-blue);
+  color: var(--ktb-blue);
+  font-weight: 700;
+}
+
+.date-calendar button:not(:disabled):hover,
+.date-calendar button:focus-visible,
+.available-date-picker summary:focus-visible {
+  outline: 2px solid var(--ktb-blue);
+  outline-offset: 1px;
+}
+
+.date-calendar-hint {
+  margin: 8px 0 0;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+/* Tracking toolbars sit against the right edge of the page. */
+.date-filter .date-calendar {
+  left: auto;
+  right: 0;
+}

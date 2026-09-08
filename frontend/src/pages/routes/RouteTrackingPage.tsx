@@ -5,6 +5,7 @@ import { thb } from "@/utils/format";
 import RoutePathMap from "@/components/maps/RoutePathMap";
 import ResizableSplit from "@/components/ResizableSplit";
 import DateFilter from "@/components/DateFilter";
+import TrendsLink from "@/components/TrendsLink";
 import { useAppData } from "@/hooks/useAppData";
 import KpiCard, { SkeletonKpiCard } from "@/components/KpiCard";
 import StatusDot from "@/components/StatusDot";
@@ -77,7 +78,8 @@ export default function RouteTrackingPage() {
     <div className="track-page">
       <div className="page-toolbar">
         <span className="pt-title">Route Tracking · {summary.totalRoutes} trucks</span>
-        <DateFilter />
+        <DateFilter dataset="routes" />
+        <TrendsLink dataset="routes" />
       </div>
 
       {/* ── KPI Cards ── */}

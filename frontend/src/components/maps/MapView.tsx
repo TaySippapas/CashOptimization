@@ -5,6 +5,7 @@ import { thb } from "@/utils/format";
 import { useTileUrl } from "@/hooks/useTheme";
 import { RoadPolyline, FitBounds, depotIcon } from "./map.utils";
 import { COLOR } from "@/utils/colors";
+import MapLegend from "./MapLegend";
 
 const STATUS_COLOR: Record<string, string> = {
   REPLENISH: COLOR.amber,
@@ -224,7 +225,7 @@ export default function MapView({
         </button>
       </div>
 
-      <div className="map-legend-left map-legend">
+      <MapLegend className="map-legend-left">
         {isTracking ? (
           <>
             <div className="row"><span className="dot" style={{ background: COLOR.amber }} /> Delivery</div>
@@ -245,7 +246,7 @@ export default function MapView({
             <div className="row"><span className="line" style={{ borderColor: COLOR.red, borderTopStyle: "dashed" }} /> {compareRouteLabel} route</div>
           </>
         )}
-      </div>
+      </MapLegend>
     </div>
   );
 }

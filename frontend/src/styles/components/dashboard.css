@@ -330,7 +330,7 @@
   background: var(--overlay-2);
   border: 1px solid var(--border);
   border-radius: 10px;
-  padding: clamp(7px, 0.7vw, 10px) clamp(9px, 0.9vw, 12px);
+  padding: 4px;
   font-size: clamp(9.5px, 0.72vw, 11px);
   backdrop-filter: blur(6px);
   /* never let the legend outgrow the map it sits on */
@@ -349,6 +349,105 @@
   align-items: center;
   gap: 8px;
   margin: 4px 0;
+}
+
+.map-legend-toggle {
+  display: grid;
+  grid-template-columns: 28px 1fr 20px;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border));
+  border-radius: 7px;
+  padding: 7px 8px;
+  background: linear-gradient(115deg, color-mix(in srgb, var(--accent) 16%, var(--panel)), var(--panel-2));
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+
+.map-legend-toggle:hover {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.map-legend-icon {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--accent) 18%, var(--inset));
+  color: var(--accent);
+}
+
+.map-legend-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.map-legend-title {
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+}
+
+.map-legend-description {
+  font-size: 9px;
+  color: var(--muted);
+}
+
+.map-legend-chevron {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--inset);
+  color: var(--accent);
+  transform: rotate(180deg);
+  transition: transform 180ms ease;
+}
+
+.map-legend-content {
+  margin: 5px 5px 0;
+  padding: 5px 2px 3px;
+  border-top: 1px solid var(--border);
+}
+
+.map-legend-toggle:focus-visible {
+  outline: 2px solid var(--ktb-blue);
+  outline-offset: 3px;
+}
+
+.map-legend.is-collapsed {
+  max-width: none;
+  border-radius: 24px;
+}
+
+.map-legend.is-collapsed .map-legend-toggle {
+  border-radius: 20px;
+  padding: 4px 8px 4px 4px;
+}
+
+.map-legend.is-collapsed .map-legend-icon {
+  border-radius: 50%;
+}
+
+.map-legend.is-collapsed .map-legend-chevron {
+  transform: rotate(0deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .map-legend-toggle,
+  .map-legend-chevron {
+    transition: none;
+  }
 }
 
 .map-legend .dot {

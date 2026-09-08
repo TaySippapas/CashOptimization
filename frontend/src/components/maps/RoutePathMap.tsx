@@ -5,6 +5,7 @@ import { thb } from "@/utils/format";
 import { useTileUrl } from "@/hooks/useTheme";
 import { RoadPolyline, FitBounds, depotIcon } from "./map.utils";
 import { STOP_STATUS_COLOR, STOP_TYPE_COLOR } from "@/domain/routeExec";
+import MapLegend from "./MapLegend";
 
 function stopIcon(color: string, ring: string, seq: number) {
   return L.divIcon({
@@ -49,7 +50,7 @@ export default function RoutePathMap({ exec }: { exec: RouteExecution }) {
           </Popup>
         </Marker>
       </MapContainer>
-      <div className="map-legend-left map-legend route-detail-legend">
+      <MapLegend className="map-legend-left route-detail-legend" description="Stops & routes">
         <div className="legend-group-label">Stop type</div>
         <div className="row"><span className="dot" style={{ background: STOP_TYPE_COLOR.Deliver }} /> Delivery</div>
         <div className="row"><span className="dot" style={{ background: STOP_TYPE_COLOR.Pickup }} /> Pickup</div>
@@ -62,7 +63,7 @@ export default function RoutePathMap({ exec }: { exec: RouteExecution }) {
         <div className="legend-group-label">Route</div>
         <div className="row"><span className="line" style={{ borderColor: exec.color }} /> Route path</div>
         <div className="row"><span className="dot depot-legend-dot" /> Depot</div>
-      </div>
+      </MapLegend>
     </div>
   );
 }

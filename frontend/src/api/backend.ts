@@ -1,6 +1,9 @@
 /** Fetch operational data from the FastAPI / Unity Catalog backend. */
 
+import type { RouteExecution } from "@/types";
+
 export type DataSource = "unity_catalog" | "mock" | "error" | "local";
+export type TrackingDataset = "branches" | "machines" | "routes";
 
 async function getJson<T>(path: string): Promise<T | null> {
   try {
@@ -33,21 +36,20 @@ export async function fetchMachinesFromApi(date?: string): Promise<{
   const data = await getJson<{ source: DataSource; businessDate?: string; machines: unknown[]; error?: string }>(
     `/api/v2/machine-tracks${qs({ date })}`
   );
-  if (!data) return null;
-  if (!data.machines?.length) return null;
+  if (data?.source !== "unity_catalog" || !Array.isArray(data.machines)) return null;
   return { source: data.source, businessDate: data.businessDate ?? "", machines: data.machines };
 }
 
 export async function fetchBranchesFromApi(date?: string): Promise<{
   source: DataSource;
+  businessDate: string;
   branches: unknown[];
 } | null> {
-  const data = await getJson<{ source: DataSource; branches: unknown[] }>(
+  const data = await getJson<{ source: DataSource; businessDate?: string; branches: unknown[] }>(
     `/api/v2/branch-tracks${qs({ date })}`
   );
-  if (!data) return null;
-  if (!data.branches?.length) return null;
-  return { source: data.source, branches: data.branches };
+  if (data?.source !== "unity_catalog" || !Array.isArray(data.branches)) return null;
+  return { source: data.source, businessDate: data.businessDate ?? "", branches: data.branches };
 }
 
 export async function fetchBranchInputsFromApi(date?: string): Promise<{
@@ -63,18 +65,35 @@ export async function fetchBranchInputsFromApi(date?: string): Promise<{
 
 export async function fetchRoutesFromApi(planType?: string, date?: string): Promise<{
   source: DataSource;
+  businessDate: string;
   routes: unknown[];
 } | null> {
-  const data = await getJson<{ source: DataSource; routes: unknown[] }>(
+  const data = await getJson<{ source: DataSource; businessDate?: string; routes: unknown[] }>(
     `/api/v2/route-executions${qs({ plan_type: planType, date })}`
   );
-  if (!data?.routes?.length) return null;
-  return { source: data.source, routes: data.routes };
+  if (data?.source !== "unity_catalog" || !Array.isArray(data.routes)) return null;
+  return { source: data.source, businessDate: data.businessDate ?? "", routes: data.routes };
+}
+
+/** Exact dates with optimized route data, including gaps between available days. */
+export async function fetchReportDates(): Promise<{ dates: string[] } | null> {
+  return getJson("/api/v2/reports/available-dates");
+}
+
+/** Fetch the chosen report date explicitly; never substitute mock or latest data. */
+export async function fetchReportRoutes(date: string): Promise<RouteExecution[] | null> {
+  const data = await getJson<{
+    source: DataSource;
+    businessDate?: string;
+    routes: RouteExecution[];
+  }>(`/api/v2/route-executions${qs({ plan_type: "OPTIMIZED", date })}`);
+  if (data?.source !== "unity_catalog" || data.businessDate !== date) return null;
+  return data.routes ?? null;
 }
 
 /** Range of business dates that actually have data, for bounding the picker. */
-export async function fetchDateRange(): Promise<{ minDate?: string; maxDate?: string } | null> {
-  return getJson("/api/v2/date-range");
+export async function fetchDateRange(dataset: TrackingDataset = "branches"): Promise<{ dates: string[]; minDate: string | null; maxDate: string | null } | null> {
+  return getJson(`/api/v2/date-range${qs({ dataset })}`);
 }
 
 export async function fetchHealth(): Promise<{

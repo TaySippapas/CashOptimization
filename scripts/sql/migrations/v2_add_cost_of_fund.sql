@@ -7,8 +7,8 @@
 -- using the cost_of_fund_annual parameter (0.0325) seeded in
 -- dim_route_parameter.
 
-USE CATALOG mdp_dev_dit;
-USE SCHEMA default;
+USE CATALOG ${catalog};
+USE SCHEMA ${schema};
 
 ALTER TABLE fact_cash_position ADD COLUMNS (cost_of_fund_thb DECIMAL(18,2));
 ALTER TABLE fact_machine_position ADD COLUMNS (cost_of_fund_thb DECIMAL(18,2));

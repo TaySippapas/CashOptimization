@@ -9,8 +9,8 @@
 -- Branch names/coordinates match frontend/src/mocks/branches.ts so the map
 -- lines up with the client-side mock the app falls back to.
 
-USE CATALOG mdp_dev_dit;
-USE SCHEMA default;
+USE CATALOG ${catalog};
+USE SCHEMA ${schema};
 
 -- ══ Reference views ═══════════════════════════════════════════════════════
 
@@ -127,7 +127,13 @@ AS t(parameter_type, parameter, description, value, remark);
 -- and predicted closing = opening + deposits - withdrawals.
 
 TRUNCATE TABLE fact_cash_position;
-INSERT INTO fact_cash_position
+-- Columns are named rather than positional so this seed still applies after
+-- migrations add columns (cost_of_fund_thb is backfilled by its own migration).
+INSERT INTO fact_cash_position (
+  business_date, branch_code, actual_cash_d_minus_1, predicted_cash_d,
+  predicted_deposit_d, predicted_withdrawal_d, action_type, health_status,
+  emergency_flag, delivery_amount_thb, updated_at
+)
 SELECT
   business_date,
   branch_code,
@@ -178,6 +184,8 @@ FROM (
 
 -- Cash flow: a trailing 14-day window per business_date. Days before the
 -- business date are ACTUAL, the business date itself is FORECAST.
+-- Forecast amounts come from the position snapshot so the daily figures and
+-- the last trend point agree. Historical ACTUAL rows keep their own generator.
 
 TRUNCATE TABLE fact_cash_flow_daily;
 INSERT INTO fact_cash_flow_daily
@@ -193,15 +201,18 @@ SELECT
   current_timestamp()
 FROM (
   SELECT
-    d.business_date,
+    p.business_date,
     b.branch_code,
     s.series_date,
-    500000 + pmod(hash('fd', b.branch_code, s.series_date), 3500) * 1000 AS deposit,
-    500000 + pmod(hash('fw', b.branch_code, s.series_date), 3500) * 1000 AS withdrawal,
-    b.cash_capacity_thb * (0.12 + pmod(hash(b.branch_code, s.series_date), 78) / 100.0) AS remaining
-  FROM v_date d
-  CROSS JOIN v_branch b
-  LATERAL VIEW explode(sequence(date_sub(d.business_date, 13), d.business_date, interval 1 day)) s AS series_date
+    CASE WHEN s.series_date = p.business_date THEN p.predicted_deposit_d
+      ELSE 500000 + pmod(hash('fd', b.branch_code, s.series_date), 3500) * 1000 END AS deposit,
+    CASE WHEN s.series_date = p.business_date THEN p.predicted_withdrawal_d
+      ELSE 500000 + pmod(hash('fw', b.branch_code, s.series_date), 3500) * 1000 END AS withdrawal,
+    CASE WHEN s.series_date = p.business_date THEN p.predicted_cash_d
+      ELSE b.cash_capacity_thb * (0.12 + pmod(hash(b.branch_code, s.series_date), 78) / 100.0) END AS remaining
+  FROM fact_cash_position p
+  JOIN v_branch b ON b.branch_code = p.branch_code
+  LATERAL VIEW explode(sequence(date_sub(p.business_date, 13), p.business_date, interval 1 day)) s AS series_date
 );
 
 -- Denominations: mix percentages sum to 100 per branch-date.
@@ -239,7 +250,11 @@ FROM (
 -- ══ Machine facts ═════════════════════════════════════════════════════════
 
 TRUNCATE TABLE fact_machine_position;
-INSERT INTO fact_machine_position
+INSERT INTO fact_machine_position (
+  business_date, machine_id, actual_cash_d_minus_1, predicted_cash_d,
+  predicted_deposit_d, predicted_withdrawal_d, action_type, health_status,
+  emergency_flag, delivery_amount_thb, remove_amount_thb, updated_at
+)
 SELECT
   business_date,
   machine_id,

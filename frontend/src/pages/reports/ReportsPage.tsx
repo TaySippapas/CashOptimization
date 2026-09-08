@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { FileText, Download, Calendar, CheckCircle2, Truck, MapPin, Ruler, Banknote } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { FileText, Download, CheckCircle2, Truck, MapPin, Ruler, Banknote } from "lucide-react";
 import {
   REPORT_REGISTRY,
   generateReport,
@@ -7,22 +7,59 @@ import {
   type ReportId,
   type PlanTypeLabel,
 } from "@/domain/reportsData";
-import { useAppData } from "@/hooks/useAppData";
+import { fetchReportDates, fetchReportRoutes } from "@/api/backend";
+import type { RouteExecution } from "@/types";
 import { thb } from "@/utils/format";
 import Skeleton from "@/components/Skeleton";
 import ReportIllustration from "./_ReportIllustration";
+import AvailableDatePicker from "@/components/AvailableDatePicker";
 
 export default function ReportsPage() {
-  const { execs, dataLoading } = useAppData();
   const [planType] = useState<PlanTypeLabel>("PLAN");
-  const [date, setDate] = useState("2025-05-08");
+  const [date, setDate] = useState("");
+  const [dates, setDates] = useState<string[]>([]);
+  const [datesLoading, setDatesLoading] = useState(true);
+  const [datesError, setDatesError] = useState(false);
+  const [reload, setReload] = useState(0);
+  const [loaded, setLoaded] = useState<{ date: string; routes: RouteExecution[] | null } | null>(null);
   const [toast, setToast] = useState<{ ok: boolean; message: string } | null>(null);
   const [generating, setGenerating] = useState<string | null>(null);
 
+  useEffect(() => {
+    let cancelled = false;
+    setDatesLoading(true);
+    setDatesError(false);
+    fetchReportDates().then((result) => {
+      if (cancelled) return;
+      const available = [...new Set(result?.dates ?? [])].sort();
+      setDates(available);
+      setDatesError(result === null);
+      setDate((current) => available.includes(current) ? current : available[available.length - 1] ?? "");
+      setDatesLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [reload]);
+
+  useEffect(() => {
+    if (datesLoading || !dates.includes(date)) return;
+    let cancelled = false;
+    setLoaded(null);
+    fetchReportRoutes(date).then((routes) => {
+      if (!cancelled) setLoaded({ date, routes });
+    });
+    return () => { cancelled = true; };
+  }, [date, dates, datesLoading]);
+
+  // A previous date's response must never be previewed or exported under a new date.
+  const validDate = dates.includes(date);
+  const dataLoading = datesLoading || (validDate && loaded?.date !== date);
+  const execs = useMemo(() => loaded?.date === date ? loaded.routes ?? [] : [], [loaded, date]);
+  const loadError = datesError || (validDate && loaded?.date === date && loaded.routes === null);
   const preview = useMemo(() => reportPreview(execs), [execs]);
   const report = REPORT_REGISTRY[0]; // Route Report (only one for now)
 
   const run = (reportId: ReportId) => {
+    if (!validDate || dataLoading || loadError || !execs.length) return;
     setGenerating(reportId);
     const result = generateReport(execs, { reportId, planType, date });
     setToast(result);
@@ -93,14 +130,22 @@ export default function ReportsPage() {
             <div className="reports-field">
               <label>Date</label>
               <div className="reports-date-range">
-                <Calendar size={15} className="reports-cal-icon" />
-                <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="reports-date" />
+                {datesLoading || !dates.length
+                  ? <button type="button" className="reports-date" disabled>{datesLoading ? "Loading dates…" : "No available dates"}</button>
+                  : <AvailableDatePicker label="report date" dates={dates} value={date} onChange={(next) => {
+                    if (dates.includes(next)) { setDate(next); setToast(null); }
+                  }} />}
               </div>
-              <span className="reports-date-hint">
-                {dataLoading
-                  ? <Skeleton width={100} height={11} style={{ display: "inline-block" }} />
-                  : `Available: 2025-05-08`}
+              <span className="reports-date-hint" role="status">
+                {datesLoading ? "Checking available report dates…"
+                  : loadError ? "Could not load report data. Please retry."
+                  : !dates.length ? "No report data is available."
+                  : dataLoading ? "Loading report data…"
+                  : !execs.length ? "No route data remains for this date. Refresh available dates."
+                  : "Only dates with route data can be selected."}
               </span>
+              {!datesLoading && (loadError || !dates.length || (!dataLoading && !execs.length)) &&
+                <button type="button" className="btn" onClick={() => setReload((value) => value + 1)}>Retry</button>}
             </div>
 
             {/* Preview stats */}
@@ -138,7 +183,7 @@ export default function ReportsPage() {
                     key={o.id}
                     type="button"
                     className="btn primary reports-gen-btn"
-                    disabled={generating === o.id || dataLoading || !execs.length}
+                    disabled={generating === o.id || dataLoading || !validDate || loadError || !execs.length}
                     onClick={() => run(o.id)}
                     style={{ justifyContent: "flex-start", gap: 8 }}
                   >

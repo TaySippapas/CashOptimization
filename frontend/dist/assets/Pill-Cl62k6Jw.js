@@ -1,0 +1,1 @@
+import{j as l}from"./index-CXwvh83_.js";function n({color:s,children:r,size:t="sm",style:a}){return l.jsx("span",{className:`pill-tag${t==="lg"?" lg":""}`,style:{color:s,borderColor:`${s}55`,background:`${s}18`,...a},children:r})}export{n as P};

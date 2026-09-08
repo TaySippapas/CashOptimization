@@ -5,6 +5,7 @@ import { thb } from "@/utils/format";
 import HealthMap, { type MapPoint } from "@/components/maps/HealthMap";
 import ResizableSplit from "@/components/ResizableSplit";
 import DateFilter from "@/components/DateFilter";
+import TrendsLink from "@/components/TrendsLink";
 import TrendChart from "@/components/charts/TrendChart";
 import { DenominationGap } from "@/components/charts/DenominationChart";
 import { useAppData } from "@/hooks/useAppData";
@@ -75,7 +76,8 @@ export default function BranchTrackingPage() {
             </option>
           ))}
         </select>
-        <DateFilter />
+        <DateFilter dataset="branches" />
+        <TrendsLink dataset="branches" />
       </div>
 
       <div className="kpi-grid track-kpis six">
@@ -229,7 +231,7 @@ export default function BranchTrackingPage() {
             {dataLoading ? (
               <Skeleton height={220} radius={10} />
             ) : (
-              trendData.length > 0 && <TrendChart data={trendData} height={220} splitActualPredicted />
+              trendData.length > 0 && <TrendChart data={trendData} height={220} splitActualPredicted selectableLegend />
             )}
             <div className="trend-caption">Solid = Actual · Dashed = Predicted (Deposit · Withdrawal · Net)</div>
           </div>
